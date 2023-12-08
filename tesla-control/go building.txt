@@ -1,0 +1,14 @@
+This folder contains the "tesla-control" CLI tool from:
+download https://github.com/teslamotors/vehicle-command/
+See build / download instructions there.
+
+Building, when toolchain installed:
+cd vehicle-command/cmd/tesla-control/
+
+normal build for PC (testing):
+go build .
+
+build for Raspberry Pi:
+env GOOS=linux GOARCH=arm GOARM=7 go build .
+
+finally put (or link) the output file "tesla-control" into this directory.
