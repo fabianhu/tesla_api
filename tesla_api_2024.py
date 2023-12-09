@@ -255,7 +255,7 @@ class TeslaAPI:
 
         # call the command externally
         import os
-        cmd = f'./lib/tesla/tesla-control/tesla-control -key-file ./lib/tesla/TeslaKeys/privatekey.pem -token-file {tokenfile} -vin {vin} {command_string}'
+        cmd = f'./lib/tesla_api/tesla-control/tesla-control -key-file ./lib/tesla_api/TeslaKeys/privatekey.pem -token-file {tokenfile} -vin {vin} {command_string}'
         #cmd = f'./tesla-control/tesla-control -debug -key-file ./TeslaKeys/privatekey.pem -token-file {tokenfile} -vin {vin} {command_string}'
 
         logger.debug(f"Command:\n{cmd}")
