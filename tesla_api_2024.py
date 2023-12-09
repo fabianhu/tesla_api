@@ -6,19 +6,20 @@ import http.client
 import json
 import logging
 import os
-
-import config
 import requests
 import datetime
 import webbrowser
 import secrets
-from lib.logger import Logger
 from urllib.parse import urlencode
 
+#own lib and modules
+import config
+from lib.logger import Logger
 logger = Logger(logging.DEBUG, "tesla.log")
 
-CLIENT_ID = config.tesla_client_id
-CLIENT_SECRET = config.tesla_client_secret
+
+CLIENT_ID = config.tesla_client_id  # this is the developer account, not the customer !!
+CLIENT_SECRET = config.tesla_client_secret # this is the developer account, not the customer !!
 AUDIENCE = "fleet-api.prd.eu.vn.cloud.tesla.com" # Europe
 #AUDIENCE = "fleet-api.prd.na.vn.cloud.tesla.com" # North America
 
@@ -31,7 +32,7 @@ class TeslaAPI:
         self.refresh_token = None
         self.token_expires_at : datetime = datetime.datetime.now()
         self.token_file = _tesla_account_name+"_tokens.json"
-        self.client_id = config.tesla_client_id
+        self.client_id = CLIENT_ID
         self.audience = AUDIENCE
 
         self.tokens_load()  # load the stored tokens and refresh, if necessary
@@ -409,7 +410,7 @@ def tesla_register_customer(myTesla: TeslaAPI):
     print(random_state)
     print("Next step is to exchange the Code for tokens.")
     user_input_code = input("Please enter the code: ")
-    myTesla.exchange_code_for_tokens(CLIENT_ID, CLIENT_SECRET, user_input_code)
+    myTesla.exchange_code_for_tokens(myTesla.client_id, CLIENT_SECRET, user_input_code)
     print("So, now we should have the access tokens saved. Your account is registered.")
 
 
@@ -447,11 +448,21 @@ def tesla_register_customer_key():
 
 
 def tesla_get_region(_token):
+    """
+    Get the region of a user token
+    :param _token:
+    :return: Answer from server
+    """
     target = '/api/1/users/region'
     return tesla_generic_request(AUDIENCE, target, _token)
 
 
 def tesla_partner_check_public_key(_partner_token):
+    """
+    Check, if the partner token is successfully registered with tesla
+    :param _partner_token:
+    :return:
+    """
     target = '/api/1/partner_accounts/public_key'
     return tesla_generic_request(AUDIENCE, target, _partner_token)
 
@@ -482,7 +493,7 @@ def tesla_register_process():
     #and store into TeslaKeys directory
 
     # 2b: Generate a partner authentication token.
-    partner_token = tesla_get_partner_auth_token(config.tesla_client_id, config.tesla_client_secret, AUDIENCE)
+    partner_token = tesla_get_partner_auth_token(CLIENT_ID, CLIENT_SECRET, AUDIENCE)
     # 2c: Make a POST call to /api/1/partner_accounts with your partner authentication token.
     _r = tesla_register_partner_account(partner_token, config.tesla_redirect_domain) # is only needed once!
     print("account registration", _r)
@@ -519,7 +530,7 @@ if __name__ == '__main__':
     r = myT.get_vehicles_list()
     print("vehicle list", r)
     r = myT.get_vehicle(config.tesla_vin) # VIN or ID from list
-    if r['api_version'] != 67:
+    if r['api_version'] != 69:
         print("Wrong API version")
     print("vehicle", r)
 
