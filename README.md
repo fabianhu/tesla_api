@@ -8,6 +8,8 @@ Tesla API implementation in Python.
 
 ## Installation
 - include into your project as a library / submodule
+- use ```bash
+git submodule update --remote```
 - For usage, please read the comments.
 - maybe you have a look at the mess at [ElectronFluxBalancer](https://github.com/fabianhu/electron-flux-balancer) 
 - you need to get and build tesla-control, see the readme in this subdirectory
