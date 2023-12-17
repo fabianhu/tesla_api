@@ -49,13 +49,13 @@ class TeslaAPI:
                 loaded_tokens = json.load(file)
 
         except FileNotFoundError:
-            print(f"Error: The file {self.token_file} was not found.")
+            logger.error(f"The file {self.token_file} was not found.")
             return
         except json.JSONDecodeError:
-            print(f"Error: There was an issue decoding JSON in {self.token_file}.")
+            logger.error(f"There was an issue decoding JSON in {self.token_file}.")
             return
         except Exception as e:
-            print(f"An unexpected error occurred: {e}")
+            logger.error(f"An unexpected error occurred: {e}")
             return
 
         # Accessing the loaded tokens
@@ -73,7 +73,7 @@ class TeslaAPI:
         """
         threshold_minutes = 5
         threshold_time = datetime.datetime.now() + datetime.timedelta(minutes=threshold_minutes)
-        print(f"{self.token_expires_at}")
+        logger.debug(f"Token expires at {self.token_expires_at}")
         if self.token_expires_at < threshold_time:
             token_url = "https://auth.tesla.com/oauth2/v3/token"
             payload = {
@@ -92,7 +92,7 @@ class TeslaAPI:
             # Saving tokens to a file
             with open(self.token_file, "w") as file:
                 json.dump(token_data, file, indent=4)
-            #print("Token refreshed")
+            #logger.debug("Token refreshed")
         else:
             # no need to refresh
             pass
@@ -183,6 +183,7 @@ class TeslaAPI:
         return self.tesla_command(f"charging-schedule {int(_mins)}", _vin)
 
     def cmd_charge_cancel_schedule(self, _vin):
+        # remark: this might start a charge immediately!
         return self.tesla_command("charging-schedule-cancel", _vin)
 
     def cmd_charge_set_amps(self, _vin, _amps):
@@ -329,8 +330,10 @@ def tesla_generic_command(_audience, _target_url, _access_token, _payload =''):
     :param _payload:
     :return:
     """
-    if _access_token is None: return None
-    print("Tesla Command:", _target_url)
+    if _access_token is None:
+        logger.error("No Token specified!")
+        return None
+    logger.debug(f"Tesla Command: {_target_url}")
     conn = http.client.HTTPSConnection(_audience)
     headers = {
         'Content-Type': 'application/json',
@@ -375,12 +378,13 @@ def tesla_get_partner_auth_token(client_id, client_secret, audience_list):
         token_data = response.json()
         return token_data.get("access_token")
     else:
-        print("Error:", response.status_code, response.text)
+        logger.error(f"Partner auth token request error {response.status_code}, {response.text}")
         return None
 
 
 def tesla_register_partner_account(_partner_token, _domain):
     """
+    Call in an interactive session!
     Do one call once, to verify your domain you entered during registration. API will not work, if not done.
     :param _partner_token: your partner token you got from tesla_get_partner_auth_token()
     :param _domain: The domain for this endpoint must match the root domain from the allowed_origins on developer.tesla.com. Include a tailing '/'!
@@ -397,8 +401,9 @@ def tesla_register_partner_account(_partner_token, _domain):
 
 def tesla_register_customer(myTesla: TeslaAPI):
     """
+    Call in an interactive session!
     Call for every customer, this assigns your app to your customers account.
-    This acquires the token(s) to communicate with the account and to access data from the car.
+    This acquires the first token(s) to communicate with the account and to access data from the car.
     :param myTesla: my Tesla instance, as we are doing the key exchange here
     :return:
     """
@@ -416,6 +421,7 @@ def tesla_register_customer(myTesla: TeslaAPI):
 
 def tesla_register_customer_key():
     """
+    Call in an interactive session!
     Register the public key of the partner to the car, so that the car can be controlled by the app.
     Installs the key to the car.
     :return:
@@ -468,7 +474,11 @@ def tesla_partner_check_public_key(_partner_token):
 
 
 def tesla_register_process():
-
+    """
+    Example implementation of the registration process.
+    To be executed in debug mode only.
+    :return:
+    """
     # ATTENTION!!
     # read comments first
 
@@ -507,10 +517,10 @@ def tesla_register_process():
     print("registration", _r)
 
 
-# test stuff, if run directly (PC!)
+# test stuff, if run directly (only on PC!)
 if __name__ == '__main__':
 
-    os.chdir("../../")
+    os.chdir("../../")  # hop to the correct directory, as if called as lib/tesla_api/...
 
     myT = TeslaAPI()
     #myT.tesla_command("wake")
