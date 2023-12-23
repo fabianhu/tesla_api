@@ -58,5 +58,8 @@ git submodule update --remote```
     tesla_register_customer_key()
     ```
    
-## Use as a submodule
- Be aware, that in a submodule any commit will not be to the main, if you do not check out main.
+## Use this library as a submodule
+ Be aware, that in a submodule in default, any commit will not be to the main branch, if you do not check out main.
+- Inside the library=submodule directory:
+- to check out before commit: `git checkout main`
+- to update: `git pull origin main`
