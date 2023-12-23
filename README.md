@@ -58,3 +58,5 @@ git submodule update --remote```
     tesla_register_customer_key()
     ```
    
+## Use as a submodule
+ Be aware, that in a submodule any commit will not be to the main, if you do not check out main.

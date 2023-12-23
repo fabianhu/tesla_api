@@ -15,7 +15,7 @@ from urllib.parse import urlencode
 #own lib and modules
 import config
 from lib.logger import Logger
-logger = Logger(logging.DEBUG, "tesla.log")
+logger = Logger(logging.INFO, "tesla.log")
 
 
 CLIENT_ID = config.tesla_client_id  # this is the developer account, not the customer !!
@@ -73,8 +73,9 @@ class TeslaAPI:
         """
         threshold_minutes = 5
         threshold_time = datetime.datetime.now() + datetime.timedelta(minutes=threshold_minutes)
-        logger.debug(f"Token expires at {self.token_expires_at}")
+
         if self.token_expires_at < threshold_time:
+            logger.debug(f"Token expires at {self.token_expires_at} - will refresh")
             token_url = "https://auth.tesla.com/oauth2/v3/token"
             payload = {
                 'grant_type': 'refresh_token',
@@ -540,7 +541,7 @@ if __name__ == '__main__':
     r = myT.get_vehicles_list()
     print("vehicle list", r)
     r = myT.get_vehicle(config.tesla_vin) # VIN or ID from list
-    if r['api_version'] != 69:
+    if r['api_version'] != 71:
         print("Wrong API version")
     print("vehicle", r)
 
