@@ -15,7 +15,6 @@ from urllib.parse import urlencode
 #own lib and modules
 import config
 from lib.logger import Logger
-logger = Logger(logging.INFO, "tesla.log")
 
 
 CLIENT_ID = config.tesla_client_id  # this is the developer account, not the customer !!
@@ -24,10 +23,15 @@ AUDIENCE = "fleet-api.prd.eu.vn.cloud.tesla.com" # Europe
 #AUDIENCE = "fleet-api.prd.na.vn.cloud.tesla.com" # North America
 
 class TeslaAPI:
-    def __init__(self, _tesla_account_name: str = "tesla"):
+    def __init__(self, _tesla_account_name: str = "tesla", logger = None):
         """
         :param _tesla_account_name: just an account name for storing the cached tokens for this account
         """
+        if logger is None:
+            self.logger = Logger(logging.INFO, "tesla.log")
+        else:
+            self.logger = logger
+
         self.access_token = None
         self.refresh_token = None
         self.token_expires_at : datetime = datetime.datetime.now()
@@ -49,13 +53,13 @@ class TeslaAPI:
                 loaded_tokens = json.load(file)
 
         except FileNotFoundError:
-            logger.error(f"The file {self.token_file} was not found.")
+            self.logger.error(f"The file {self.token_file} was not found.")
             return
         except json.JSONDecodeError:
-            logger.error(f"There was an issue decoding JSON in {self.token_file}.")
+            self.logger.error(f"There was an issue decoding JSON in {self.token_file}.")
             return
         except Exception as e:
-            logger.error(f"An unexpected error occurred: {e}")
+            self.logger.error(f"An unexpected error occurred: {e}")
             return
 
         # Accessing the loaded tokens
@@ -75,7 +79,7 @@ class TeslaAPI:
         threshold_time = datetime.datetime.now() + datetime.timedelta(minutes=threshold_minutes)
 
         if self.token_expires_at < threshold_time:
-            logger.debug(f"Token expires at {self.token_expires_at} - will refresh")
+            self.logger.debug(f"Token expires at {self.token_expires_at} - will refresh")
             token_url = "https://auth.tesla.com/oauth2/v3/token"
             payload = {
                 'grant_type': 'refresh_token',
@@ -93,7 +97,7 @@ class TeslaAPI:
             # Saving tokens to a file
             with open(self.token_file, "w") as file:
                 json.dump(token_data, file, indent=4)
-            #logger.debug("Token refreshed")
+            #self.logger.debug("Token refreshed")
         else:
             # no need to refresh
             pass
@@ -243,7 +247,7 @@ class TeslaAPI:
         product-info           Print JSON product info
         wake                   Wake up vehicle
         """
-        logger.debug(f"Secure Command: {command_string}")
+        self.logger.debug(f"Secure Command: {command_string}")
 
         # spit out the actual token
         tokenfile = ".temp_token"
@@ -260,18 +264,18 @@ class TeslaAPI:
         cmd = f'./lib/tesla_api/tesla-control/tesla-control -key-file ./lib/tesla_api/TeslaKeys/privatekey.pem -token-file {tokenfile} -vin {vin} {command_string}'
         #cmd = f'./tesla-control/tesla-control -debug -key-file ./TeslaKeys/privatekey.pem -token-file {tokenfile} -vin {vin} {command_string}'
 
-        logger.debug(f"Command:\n{cmd}")
+        self.logger.debug(f"Command:\n{cmd}")
 
         out = os.popen(cmd).read()
-        logger.debug(f"Command output:\n{out}")
+        self.logger.debug(f"Command output:\n{out}")
         if out.startswith("Error:"):
-            logger.error(f"Tesla command '{command_string}' error -> {out}")
+            self.logger.error(f"Tesla command '{command_string}' error -> {out}")
             return False
         elif out == '':
             # we assume everything went great, as no news is good news.
             return True
         else:
-            logger.error(f"Tesla command '{command_string}' result -> {out}")
+            self.logger.error(f"Tesla command '{command_string}' result -> {out}")
             return False
 
 
@@ -291,7 +295,7 @@ def tesla_generic_request(_audience, _target_url, _access_token, _payload =''):
         'Content-Type': 'application/json',
         'Authorization': f'Bearer {_access_token}'
     }
-    logger.debug(f"Tesla request, {_target_url}")
+    self.logger.debug(f"Tesla request, {_target_url}")
 
     conn.request("GET", _target_url, _payload, headers)
     res = conn.getresponse()
@@ -303,13 +307,13 @@ def tesla_generic_request(_audience, _target_url, _access_token, _payload =''):
         if location_header:
             # Handle redirect
             new_location = location_header
-            logger.debug(f"Redirecting to: {new_location}")
+            self.logger.debug(f"Redirecting to: {new_location}")
             conn.close()
             return tesla_generic_request(_audience, new_location, _access_token, _payload)
 
     data = res.read()
     datastring = data.decode('utf-8')
-    logger.debug(f"Result: {res.status}, {res.reason}, {datastring}")
+    self.logger.debug(f"Result: {res.status}, {res.reason}, {datastring}")
     conn.close()
 
     if res.status == 200:
@@ -332,9 +336,9 @@ def tesla_generic_command(_audience, _target_url, _access_token, _payload =''):
     :return:
     """
     if _access_token is None:
-        logger.error("No Token specified!")
+        self.logger.error("No Token specified!")
         return None
-    logger.debug(f"Tesla Command: {_target_url}")
+    self.logger.debug(f"Tesla Command: {_target_url}")
     conn = http.client.HTTPSConnection(_audience)
     headers = {
         'Content-Type': 'application/json',
@@ -379,7 +383,7 @@ def tesla_get_partner_auth_token(client_id, client_secret, audience_list):
         token_data = response.json()
         return token_data.get("access_token")
     else:
-        logger.error(f"Partner auth token request error {response.status_code}, {response.text}")
+        print(f"Partner auth token request error {response.status_code}, {response.text}")
         return None
 
 
