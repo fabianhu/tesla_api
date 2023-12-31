@@ -276,46 +276,60 @@ class TeslaAPI:
 
 
 
-def tesla_generic_request(_audience, _target_url, _access_token, _payload =''):
+def tesla_generic_request(_audience, _target_url, _access_token, _payload=''):
     """
-    get data from car
+    Get data from car
     :param _audience: the audience
     :param _target_url: target url according specification
     :param _access_token: a valid access token
     :param _payload: the question you ask
     :return: dictionary with requested data
     """
-    if _access_token is None: return None
-    conn = http.client.HTTPSConnection(_audience)
-    headers = {
-        'Content-Type': 'application/json',
-        'Authorization': f'Bearer {_access_token}'
-    }
-    logger.debug(f"Tesla request, {_target_url}")
+    if _access_token is None:
+        return None
 
-    conn.request("GET", _target_url, _payload, headers)
-    res = conn.getresponse()
+    conn = None
+    try:
+        conn = http.client.HTTPSConnection(_audience)
+        headers = {
+            'Content-Type': 'application/json',
+            'Authorization': f'Bearer {_access_token}'
+        }
+        logger.debug(f"Tesla request, {_target_url}")
 
-    if res.status == 301:
-        # Check if 'Location' header is present in the list of tuples
-        location_header = dict(res.getheaders()).get('Location') or dict(res.getheaders()).get('location')
+        conn.request("GET", _target_url, _payload, headers)
+        res = conn.getresponse()
 
-        if location_header:
-            # Handle redirect
-            new_location = location_header
-            logger.debug(f"Redirecting to: {new_location}")
-            conn.close()
-            return tesla_generic_request(_audience, new_location, _access_token, _payload)
+        if res.status == 301:
+            location_header = dict(res.getheaders()).get('Location') or dict(res.getheaders()).get('location')
 
-    data = res.read()
-    datastring = data.decode('utf-8')
-    logger.debug(f"Result: {res.status}, {res.reason}, {datastring}")
-    conn.close()
+            if location_header:
+                new_location = location_header
+                logger.debug(f"Redirecting to: {new_location}")
+                conn.close()
+                return tesla_generic_request(_audience, new_location, _access_token, _payload)
 
-    if res.status == 200:
-        json_data = json.loads(datastring)['response']
-    else:
+        data = res.read()
+        datastring = data.decode('utf-8')
+        logger.debug(f"Result: {res.status}, {res.reason}, {datastring}")
+
+        if res.status == 200:
+            json_data = json.loads(datastring)['response']
+        else:
+            json_data = None
+
+    except http.client.HTTPException as e:
+        logger.error(f"HTTPException occurred: {e}")
         json_data = None
+    except json.JSONDecodeError as e:
+        logger.error(f"JSONDecodeError occurred: {e}")
+        json_data = None
+    except Exception as e:
+        logger.error(f"An unexpected error occurred: {e}")
+        json_data = None
+    finally:
+        if conn:
+            conn.close()
 
     return json_data
 
