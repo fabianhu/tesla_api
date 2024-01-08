@@ -1,5 +1,5 @@
 # tesla_api
-Tesla API implementation in Python.
+Tesla 2024 API implementation in Python.
 
 ## Overview
 * Implemets the 2024 interface including authentication and certificate handling
