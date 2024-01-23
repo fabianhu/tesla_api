@@ -1,5 +1,11 @@
 """
 Tesla Fleet API - mandatory from 2024.
+
+https://github.com/fabianhu/tesla_api
+
+This library expects to be in the location lib/tesla_api/ in your project.
+See it running in https://github.com/fabianhu/electron-flux-balancer
+
 """
 
 import http.client
@@ -13,15 +19,27 @@ import secrets
 from urllib.parse import urlencode
 
 #own lib and modules
-import config
-from lib.logger import Logger
-logger = Logger(logging.INFO, "tesla.log")
+import config  # a file config.py in the base directory, which contains all the variables config.xxx as follows:
+'''
+tesla_vin = 'LRWYAAAAAAA135456'
+tesla_client_id = "aaaaaaaaaaaa-bbbb-cccc-ddddddddddd"
+tesla_client_secret = "ta-secret.aaaaaaaaaaaaaaaa"  # only needed during registration, so does not ever need to be on the Pi!
+# put your key pair here:
+#/TeslaKeys/privatekey.pem
+#/TeslaKeys/publickey.pem
+# and store the pubkey at: https://your.domain/.well-known/appspecific/com.tesla.3p.public-key.pem
+tesla_redirect_domain = "your.domain"
+tesla_redirect_uri = "https://your.domain/and/stuff/"
+tesla_audience = "fleet-api.prd.eu.vn.cloud.tesla.com" # Europe
+#tesla_audience =  "fleet-api.prd.na.vn.cloud.tesla.com" # North America
+'''
 
+from lib.logger import Logger # own logger
+logger = Logger(logging.INFO, "tesla.log")
 
 CLIENT_ID = config.tesla_client_id  # this is the developer account, not the customer !!
 CLIENT_SECRET = config.tesla_client_secret # this is the developer account, not the customer !!
-AUDIENCE = "fleet-api.prd.eu.vn.cloud.tesla.com" # Europe
-#AUDIENCE = "fleet-api.prd.na.vn.cloud.tesla.com" # North America
+AUDIENCE = config.tesla_audience
 
 class TeslaAPI:
     def __init__(self, _tesla_account_name: str = "tesla"):
@@ -86,6 +104,7 @@ class TeslaAPI:
             response = requests.post(token_url, data=payload)
 
             token_data = response.json()
+            # fixme catch error here (from issue #1)
             token_data["expiry_time"] = (datetime.datetime.now() + datetime.timedelta(seconds=token_data.get('expires_in'))).isoformat()
             self.token_expires_at = datetime.datetime.fromisoformat(token_data.get('expiry_time'))
             self.access_token = token_data.get('access_token')
@@ -224,7 +243,9 @@ class TeslaAPI:
 
     def tesla_command(self, command_string, vin = config.tesla_vin):
         """
-        Interface to the tesla-control CLI tool. Used here due to missing documentation for a native implementation.
+        Interface to the tesla-control CLI tool. Used here due to missing native implementation.
+        https://github.com/teslamotors/vehicle-command/blob/main/pkg/protocol/protocol.md
+        Doc is available now - works as it is for the moment.
         See instructions in tesla-control directory!
         Concept: we spit out the token and the key into files, invoke the CLI and off we go.
 
@@ -491,7 +512,7 @@ def tesla_partner_check_public_key(_partner_token):
 def tesla_register_process():
     """
     Example implementation of the registration process.
-    To be executed in debug mode only.
+    To be executed one by one in debug mode only.
     :return:
     """
     # ATTENTION!!
@@ -527,7 +548,9 @@ def tesla_register_process():
 
     # 4: Customer must allow key on vehicle(s)
     tesla_register_customer_key()
+    # at this stage a file tesla_tokens.json should exist and all API calls can work now.
 
+    # bonus step
     _r = tesla_partner_check_public_key(partner_token) # results in redirect and 404 for EU !!!
     print("registration", _r)
 
@@ -538,10 +561,16 @@ if __name__ == '__main__':
     os.chdir("../../")  # hop to the correct directory, as if called as lib/tesla_api/...
 
     myT = TeslaAPI()
+
+    # first run: go to the function tesla_register_process() and follow the comments.
+    print("First run: go to the function tesla_register_process() and follow the comments.")
+    # tesla_register_process()
+
+    ## here some examples to test around
     #myT.tesla_command("wake")
     #myT.tesla_command("ping") # missing scope for security
 
-    myT.tesla_command("charging-set-amps 5")
+    #myT.tesla_command("charging-set-amps 5")
     #myT.tesla_command("charging-start")
     #myT.tesla_command("charging-stop")
     #myT.tesla_command("charging-schedule 30")
