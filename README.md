@@ -59,14 +59,22 @@ git submodule update --remote```
     ```
     
 ## For sending commands, build the vehicle-command Go module
-1. install Go environment on your PC
-2. Cross-compile for Raspberry Pi 3 on the PC
-   ```bash
+1. Install Go environment on your PC
+2. Download [Tesla Vehicle Commands](https://github.com/teslamotors/vehicle-command/) source
+3. ```bash
    cd vehicle-command/cmd/tesla-control/
-   env GOOS=linux GOARCH=arm GOARM=7 go build .
+   ```
+4. Build for PC (testing)
+   ```bash
+   go build .
+   ```
+5. Cross-compile for Raspberry Pi 3 on the PC
+   ```bash
+   env GOOS=linux GOARCH=arm GOARM=7
+   go build .
    ```
    This generates an elf file `tesla_control`, which can be directly executed on the Pi3.
-3. put this file into the lib/tesla_api/vehicle_command/ directory of your project on the Pi.
+6. put this file into the lib/tesla_api/vehicle_command/ directory of your project on the Pi.
 
    
 ## Use this library as a submodule
