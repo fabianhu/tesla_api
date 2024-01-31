@@ -3,7 +3,7 @@ Tesla 2024 API implementation in Python.
 This is a library.
 
 ## Overview
-* Implemets the 2024 interface including authentication and token handling
+* Implements the 2024 interface including authentication and token handling
 * It is a part of the [ElectronFluxBalancer](https://github.com/fabianhu/electron-flux-balancer) project
 * Supports developer account registration
 * Supports customer registration and key install on car
@@ -16,7 +16,7 @@ This is a library.
 git submodule update --remote``` to update
 - For best usage, please read the comments in the main file `tesla_api_2024.py` at the beginning and at the end of the file.
 - Maybe you have a look at the implementation at [ElectronFluxBalancer](https://github.com/fabianhu/electron-flux-balancer)
-- For sending commands, you need to get and build [tesla-control](https://github.com/teslamotors/vehicle-command/), see the readme in the subdirectory `tesla-control`
+- For sending commands, you need to get and build [tesla-control](https://github.com/teslamotors/vehicle-command/), see below and the readme in the subdirectory `tesla-control`
 
 ## Registration Process
 1. **Set up a third-party account at Tesla Developer**
@@ -67,24 +67,26 @@ git submodule update --remote``` to update
 ## For sending commands, build the vehicle-command Go module
 1. Install Go environment on your PC
 2. Download [Tesla Vehicle Commands](https://github.com/teslamotors/vehicle-command/) source
-3. ```bash
+3. Read the [build instructions there](https://github.com/teslamotors/vehicle-command/#installation-and-configuration)
+4. In the downloaded directory go to
+   ```bash
    cd vehicle-command/cmd/tesla-control/
    ```
-4. Build for PC (testing)
+5. Build for PC (testing)
    ```bash
    go build .
    ```
-5. Cross-compile for Raspberry Pi 3 on the PC
+6. Cross-compile for Raspberry Pi 3 on the PC
    ```bash
    env GOOS=linux GOARCH=arm GOARM=7
    go build .
    ```
    This generates an elf file `tesla_control`, which can be directly executed on the Pi3.
-6. put this file into the lib/tesla_api/vehicle_command/ directory of your project on the Pi.
+7. put this file into the lib/tesla_api/vehicle_command/ directory of your project on the Pi.
 
    
 ## Use this library as a submodule
- Be aware, that in a submodule in default, any commit will not be to the main branch, if you do not check out main.
+ Be aware, that in a git submodule in default, any commit will not be to the main branch, if you do not check out main.
 - Inside the library=submodule directory:
 - to check out before commit: `git checkout main`
 - to update: `git pull origin main`
