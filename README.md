@@ -1,22 +1,27 @@
 # tesla_api
 Tesla 2024 API implementation in Python.
+This is a library.
 
 ## Overview
-* Implemets the 2024 interface including authentication and certificate handling
+* Implemets the 2024 interface including authentication and token handling
 * It is a part of the [ElectronFluxBalancer](https://github.com/fabianhu/electron-flux-balancer) project
+* Supports developer account registration
+* Supports customer registration and key install on car
+* Gets vehicle data as python structures
 * Uses [Tesla Vehicle Commands](https://github.com/teslamotors/vehicle-command/) for signed commands.
 
 ## Installation
-- include into your project as a library / submodule
+- include into your project as a library / git submodule in `lib/tesla_api/`
 - use ```bash
-git submodule update --remote```
-- For usage, please read the comments.
-- maybe you have a look at the mess at [ElectronFluxBalancer](https://github.com/fabianhu/electron-flux-balancer) 
-- you need to get and build tesla-control, see the readme in this subdirectory
+git submodule update --remote``` to update
+- For best usage, please read the comments in the main file `tesla_api_2024.py` at the beginning and at the end of the file.
+- Maybe you have a look at the implementation at [ElectronFluxBalancer](https://github.com/fabianhu/electron-flux-balancer)
+- For sending commands, you need to get and build [tesla-control](https://github.com/teslamotors/vehicle-command/), see the readme in the subdirectory `tesla-control`
 
 ## Registration Process
 1. **Set up a third-party account at Tesla Developer**
    - Visit [Tesla Developer Portal](https://developer.tesla.com) to set up an account.
+   - Read the registration process [there](https://developer.tesla.com/docs/fleet-api)!
 
 2. **Complete registration of your account**
     - Generate a public/private key pair for Tesla Vehicle Commands using the `secp256r1` curve:
@@ -38,14 +43,15 @@ git submodule update --remote```
         ```
     - Make a POST call to `/api/1/partner_accounts` with your partner authentication token:
         ```python
-        _r = tesla_register_partner_account(partner_token, config.tesla_redirect_domain) # is only needed once!
+        import config
+        _r = tesla_register_partner_account(partner_token, config.tesla_audience) # call once per audience you want to register for.
         print("account registration", _r)
         ```
     Now your partner registration should be completed.
     Check with: 
-    ```python
-    _r = tesla_partner_check_public_key(partner_token)
-    ```
+        ```python
+        _r = tesla_partner_check_public_key(partner_token, audience)
+        ```
 
 4. **Request authorization permissions from a customer**
     - Generate a third-party token on their behalf:

@@ -19,23 +19,26 @@ import secrets
 from urllib.parse import urlencode
 
 #own lib and modules
+
+from lib.logger import Logger # own logger
+logger = Logger(logging.INFO, "tesla.log")
+
 import config  # a file config.py in the base directory, which contains all the variables config.xxx as follows:
 '''
+# content of config.py:
 tesla_vin = 'LRWYAAAAAAA135456'
 tesla_client_id = "aaaaaaaaaaaa-bbbb-cccc-ddddddddddd"
 tesla_client_secret = "ta-secret.aaaaaaaaaaaaaaaa"  # only needed during registration, so does not ever need to be on the Pi!
 # put your key pair here:
-#/TeslaKeys/privatekey.pem
-#/TeslaKeys/publickey.pem
+#lib/tesla_api/TeslaKeys/privatekey.pem
+#lib/tesla_api/TeslaKeys/publickey.pem
 # and store the pubkey at: https://your.domain/.well-known/appspecific/com.tesla.3p.public-key.pem
-tesla_redirect_domain = "your.domain"
-tesla_redirect_uri = "https://your.domain/and/stuff/"
+tesla_redirect_domain = "your.domain"  # NO https:// !!!
+tesla_redirect_uri = "https://your.domain/and/stuff/"  # start with https:// and include a tailing '/'!
 tesla_audience = "fleet-api.prd.eu.vn.cloud.tesla.com" # Europe
 #tesla_audience =  "fleet-api.prd.na.vn.cloud.tesla.com" # North America
+tesla_scopes = "user_data vehicle_device_data vehicle_cmds vehicle_charging_cmds energy_device_data energy_cmds"  # match with your application access request
 '''
-
-from lib.logger import Logger # own logger
-logger = Logger(logging.INFO, "tesla.log")
 
 CLIENT_ID = config.tesla_client_id  # this is the developer account, not the customer !!
 CLIENT_SECRET = config.tesla_client_secret # this is the developer account, not the customer !!
@@ -51,7 +54,7 @@ class TeslaAPI:
         self.token_expires_at : datetime = datetime.datetime.now()
         self.token_file = _tesla_account_name+"_tokens.json"
         self.client_id = CLIENT_ID
-        self.audience = AUDIENCE
+        self.audience = config.tesla_audience  # the audience for this customer
 
         self.tokens_load()  # load the stored tokens and refresh, if necessary
 
@@ -128,13 +131,12 @@ class TeslaAPI:
         :return:
         """
         token_url = "https://auth.tesla.com/oauth2/v3/token"
-        redirect_uri = config.tesla_redirect_uri
         payload = {
             'grant_type': 'authorization_code',  # works 200 and delivers 2 tokens!
             'client_id': client_id,
             'client_secret': client_secret,
             'code': code,
-            'redirect_uri': redirect_uri,
+            'redirect_uri': config.tesla_redirect_uri,
             'audience': self.audience
         }
         response = requests.post(token_url, data=payload)
@@ -210,37 +212,6 @@ class TeslaAPI:
         return self.tesla_command(f"charging-set-amps {int(_amps)}", _vin)
 
 
-    ''' 
-    # fixme documentation is missing for a native implementation
-    from cryptography.hazmat.primitives import serialization
-    from cryptography.hazmat.primitives.asymmetric import ec
-    
-    def cmd_send_signed_command(self, _vin, _cryptostring):
-        target = f"/api/1/vehicles/{_vin}/signed_command"
-        payload = json.dumps({
-            "routable_message": _cryptostring
-        })
-        return tesla_generic_command(self.audience, target, self.access_token, payload)
-        
-    
-        public_key = json_data.get('public_key')
-        public_key_bytes = bytes.fromhex(public_key)
-    
-        # Create an Elliptic Curve public key object
-        public_key = ec.EllipticCurvePublicKey.from_encoded_point(ec.SECP256R1(), public_key_bytes)
-    
-        # Convert to PEM format
-        pem_format = public_key.public_bytes(
-            encoding=serialization.Encoding.PEM,
-            format=serialization.PublicFormat.SubjectPublicKeyInfo
-        )
-    
-        # Print the PEM format
-        print("PEM format:\n", pem_format.decode())
-        
-        '''
-
-
     def tesla_command(self, command_string, vin = config.tesla_vin):
         """
         Interface to the tesla-control CLI tool. Used here due to missing native implementation.
@@ -279,7 +250,6 @@ class TeslaAPI:
         # call the command externally
         import os
         cmd = f'./lib/tesla_api/tesla-control/tesla-control -key-file ./lib/tesla_api/TeslaKeys/privatekey.pem -token-file {tokenfile} -vin {vin} {command_string}'
-        #cmd = f'./tesla-control/tesla-control -debug -key-file ./TeslaKeys/privatekey.pem -token-file {tokenfile} -vin {vin} {command_string}'
 
         logger.debug(f"Command:\n{cmd}")
 
@@ -402,8 +372,7 @@ def tesla_get_partner_auth_token(client_id, client_secret, audience_list):
         "grant_type": "client_credentials",
         "client_id": client_id,
         "client_secret": client_secret,
-        "scope": "openid vehicle_device_data vehicle_cmds vehicle_charging_cmds",
-        #"scope": "vehicle_device_data vehicle_charging_cmds",
+        "scope": "openid offline_access " + config.tesla_scopes,  # the openid and offline_access is necessary for the partner token and for refreshing tokens without re-login of the user!
         "audience": f"https://{audience_list}",
     }
     # Make the POST request to obtain the authentication token
@@ -418,19 +387,20 @@ def tesla_get_partner_auth_token(client_id, client_secret, audience_list):
         return None
 
 
-def tesla_register_partner_account(_partner_token, _domain):
+def tesla_register_partner_account(_partner_token, _audience):
     """
     Call in an interactive session!
     Do one call once, to verify your domain you entered during registration. API will not work, if not done.
+
     :param _partner_token: your partner token you got from tesla_get_partner_auth_token()
-    :param _domain: The domain for this endpoint must match the root domain from the allowed_origins on developer.tesla.com. Include a tailing '/'!
+    :param _audience: The audience (server) to register the partner token for
     :return:
     """
     payload = json.dumps({
-        "domain": _domain
+        "domain": config.tesla_redirect_domain
     })
     target = "/api/1/partner_accounts"
-    rv = tesla_generic_command(AUDIENCE,target,_partner_token,payload)
+    rv = tesla_generic_command(_audience,target,_partner_token,payload)
     print(rv)
     return rv
 
@@ -443,16 +413,16 @@ def tesla_register_customer(myTesla: TeslaAPI):
     :param myTesla: my Tesla instance, as we are doing the key exchange here
     :return:
     """
-    REDIRECT_URI = config.tesla_redirect_uri
     random_state = secrets.token_hex(16)
-    url = f"https://auth.tesla.com/oauth2/v3/authorize?&client_id={myTesla.client_id}&locale=de-DE&prompt=login&redirect_uri={REDIRECT_URI}&response_type=code&scope=vehicle_device_data%20offline_access%20vehicle_charging_cmds&state={random_state}"
+    urlscopes = "openid%20offline_access%20" + config.tesla_scopes.replace(' ','%20')
+    url = f"https://auth.tesla.com/oauth2/v3/authorize?&client_id={myTesla.client_id}&locale=de-DE&prompt=login&redirect_uri={config.tesla_redirect_uri}&response_type=code&scope={urlscopes}&state={random_state}"
     webbrowser.open(url)
     print(f"web-browser opened with URL:\n{url}\n complete registration and watch, if the following random number is not disturbed in the response.")
     print(random_state)
-    print("Next step is to exchange the Code for tokens.")
+    print("Next step is to exchange the Code for tokens.\n You find the code in the URL, the tesla server redirects you to.")
     user_input_code = input("Please enter the code: ")
     myTesla.exchange_code_for_tokens(myTesla.client_id, CLIENT_SECRET, user_input_code)
-    print("So, now we should have the access tokens saved. Your account is registered.")
+    print("So, now we should have the access tokens saved. Your customer account is registered.")
 
 
 def tesla_register_customer_key():
@@ -496,17 +466,18 @@ def tesla_get_region(_token):
     :return: Answer from server
     """
     target = '/api/1/users/region'
-    return tesla_generic_request(AUDIENCE, target, _token)
+    return tesla_generic_request(config.tesla_audience, target, _token)
 
 
-def tesla_partner_check_public_key(_partner_token):
+def tesla_partner_check_public_key(_partner_token, _audience):
     """
-    Check, if the partner token is successfully registered with tesla
-    :param _partner_token:
+    Check, if the partner token is successfully registered with the audience
+    :param _partner_token: the partner token
+    :param _audience: the audience
     :return:
     """
     target = '/api/1/partner_accounts/public_key'
-    return tesla_generic_request(AUDIENCE, target, _partner_token)
+    return tesla_generic_request(_audience, target, _partner_token)
 
 
 def tesla_register_process():
@@ -539,9 +510,10 @@ def tesla_register_process():
     #and store into TeslaKeys directory
 
     # 2b: Generate a partner authentication token.
+    # hint: can also be called with a semicolon semparated audience list for multiple audiences!
     partner_token = tesla_get_partner_auth_token(CLIENT_ID, CLIENT_SECRET, AUDIENCE)
     # 2c: Make a POST call to /api/1/partner_accounts with your partner authentication token.
-    _r = tesla_register_partner_account(partner_token, config.tesla_redirect_domain) # is only needed once!
+    _r = tesla_register_partner_account(partner_token, AUDIENCE) # is needed once per audience, if you have a list!
     print("account registration", _r)
     # 3: Request authorization permissions from a customer and generate a third-party token on their behalf.
     tesla_register_customer(myT) # register new customer (customer must log in and enter code here!)
@@ -551,7 +523,7 @@ def tesla_register_process():
     # at this stage a file tesla_tokens.json should exist and all API calls can work now.
 
     # bonus step
-    _r = tesla_partner_check_public_key(partner_token) # results in redirect and 404 for EU !!!
+    _r = tesla_partner_check_public_key(partner_token, AUDIENCE) # results in redirect and 404 for EU !!! (tested 12/2023)
     print("registration", _r)
 
 
