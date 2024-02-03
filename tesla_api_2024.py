@@ -107,7 +107,9 @@ class TeslaAPI:
             response = requests.post(token_url, data=payload)
 
             token_data = response.json()
-            # fixme catch error here (from issue #1)
+            if response.status_code != 200:
+                logger.error(f"Token refresh failed: {response.status_code}, {response.text}")
+                return
             token_data["expiry_time"] = (datetime.datetime.now() + datetime.timedelta(seconds=token_data.get('expires_in'))).isoformat()
             self.token_expires_at = datetime.datetime.fromisoformat(token_data.get('expiry_time'))
             self.access_token = token_data.get('access_token')
@@ -212,7 +214,7 @@ class TeslaAPI:
         return self.tesla_command(f"charging-set-amps {int(_amps)}", _vin)
 
 
-    def tesla_command(self, command_string, vin = config.tesla_vin):
+    def tesla_command(self, command_string, vin):
         """
         Interface to the tesla-control CLI tool. Used here due to missing native implementation.
         https://github.com/teslamotors/vehicle-command/blob/main/pkg/protocol/protocol.md
@@ -254,6 +256,7 @@ class TeslaAPI:
         logger.debug(f"Command:\n{cmd}")
 
         out = os.popen(cmd).read()
+        # fixme the command returns empty string.
         logger.debug(f"Command output:\n{out}")
         if out.startswith("Error:"):
             logger.error(f"Tesla command '{command_string}' error -> {out}")
@@ -420,7 +423,7 @@ def tesla_register_customer(myTesla: TeslaAPI):
     print(f"web-browser opened with URL:\n{url}\n complete registration and watch, if the following random number is not disturbed in the response.")
     print(random_state)
     print("Next step is to exchange the Code for tokens.\n You find the code in the URL, the tesla server redirects you to.")
-    user_input_code = input("Please enter the code: ")
+    user_input_code = input("Please enter the code from the URL: ")
     myTesla.exchange_code_for_tokens(myTesla.client_id, CLIENT_SECRET, user_input_code)
     print("So, now we should have the access tokens saved. Your customer account is registered.")
 
@@ -440,14 +443,13 @@ def tesla_register_customer_key():
     qr.add_data(url)
     qr.make(fit=True)
     qc=qr.print_ascii(invert=True)
-    print(f"visit url:{url}")
-    print(qc)
+    print(f"Alternatively visit url:{url}")
 
     # Create an image from the QR code instance
     img = qr.make_image(fill_color="black", back_color="white")
 
     # Save the image to /tmp directory
-    file_path = '/tmp/registerkey.png'
+    file_path = 'registerkey.png'
     img.save(file_path)
 
     # Display the QR code using the default image viewer or web browser
@@ -548,14 +550,16 @@ if __name__ == '__main__':
     #myT.tesla_command("charging-schedule 30")
     #myT.tesla_command("charging-schedule-cancel")
 
-    r = myT.get_vehicle_data(config.tesla_vin, 'charge_state;drive_state;location_data;vehicle_state')  # requests LIVE data only -> 408 if asleep!
-    print(r)
+
 
     #r = tesla_get_region(myT.access_token) # 403 for user access token
     #print("region", r)
     r = myT.get_vehicles_list()
     print("vehicle list", r)
-    r = myT.get_vehicle(config.tesla_vin) # VIN or ID from list
+
+    vin = r[0]['vin']
+
+    r = myT.get_vehicle(vin) # VIN or ID from list
     if r['api_version'] != 71:
         print("Wrong API version")
     print("vehicle", r)
@@ -567,7 +571,7 @@ if __name__ == '__main__':
         # r = tesla_get_vehicle_data(access_token, config.tesla_vin, 'charge_state;location_data') # requests LIVE data only -> 408 if asleep!
         # r = tesla_get_vehicle_data(access_token, config.tesla_vin, 'charge_state')  # requests LIVE data only -> 408 if asleep!
         # r = tesla_get_vehicle_data(access_token, config.tesla_vin, 'charge_state;climate_state;closures_state;drive_state;gui_settings;location_data;vehicle_config;vehicle_state;vehicle_data_combo') # requests LIVE data only -> 408 if asleep!
-        r = myT.get_vehicle_data(config.tesla_vin, 'charge_state;drive_state;location_data;vehicle_state')  # requests LIVE data only -> 408 if asleep!
+        r = myT.get_vehicle_data(vin, 'charge_state;drive_state;location_data;vehicle_state')  # requests LIVE data only -> 408 if asleep!
         print(r)
 
 
