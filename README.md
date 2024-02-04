@@ -1,6 +1,7 @@
 # tesla_api
 Tesla 2024 API implementation in Python.
 This is a library.
+See the example implementation in [tesla_api_example](https://github.com/fabianhu/tesla_api_example)
 
 ## Overview
 * Implements the 2024 interface including authentication and token handling
