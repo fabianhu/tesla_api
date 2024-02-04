@@ -11,7 +11,7 @@ See it running in https://github.com/fabianhu/electron-flux-balancer
 import http.client
 import json
 import logging
-import os
+import subprocess
 import requests
 import datetime
 import webbrowser
@@ -217,9 +217,11 @@ class TeslaAPI:
     def tesla_command(self, command_string, vin):
         """
         Interface to the tesla-control CLI tool. Used here due to missing native implementation.
-        https://github.com/teslamotors/vehicle-command/blob/main/pkg/protocol/protocol.md
         Doc is available now - works as it is for the moment.
-        See instructions in tesla-control directory!
+        https://github.com/teslamotors/vehicle-command/blob/main/pkg/protocol/protocol.md
+
+        *** See build instructions in tesla-control directory!
+
         Concept: we spit out the token and the key into files, invoke the CLI and off we go.
 
         '''
@@ -244,30 +246,25 @@ class TeslaAPI:
         with open(".temp_token", 'w') as file:
             file.write(self.access_token)
 
-        '''        import base64
-        decoded_bytes = base64.b64decode(self.access_token)
-        #decoded_string = decoded_bytes.decode('utf-8')
-        print(decoded_bytes)'''
-
         # call the command externally
-        import os
         cmd = f'./lib/tesla_api/tesla-control/tesla-control -key-file ./lib/tesla_api/TeslaKeys/privatekey.pem -token-file {tokenfile} -vin {vin} {command_string}'
 
         logger.debug(f"Command:\n{cmd}")
 
-        out = os.popen(cmd).read()
-        # fixme the command returns empty string.
-        logger.debug(f"Command output:\n{out}")
-        if out.startswith("Error:"):
-            logger.error(f"Tesla command '{command_string}' error -> {out}")
-            return False
-        elif out == '':
-            # we assume everything went great, as no news is good news.
-            return True
-        else:
-            logger.error(f"Tesla command '{command_string}' result -> {out}")
-            return False
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            shell=True)
 
+        if result.stderr:
+            logger.error(f"Tesla command '{command_string}' result({result.returncode}):\n{result.stdout}{result.stderr}")
+            return False
+        if result.returncode != 0:
+            logger.error(f"Tesla command '{command_string}' result({result.returncode}):\n{result.stdout}")
+            return False
+        logger.debug(f"Command output:\n{result.stdout}")
+        return True
 
 
 def tesla_generic_request(_audience, _target_url, _access_token, _payload=''):
@@ -328,8 +325,6 @@ def tesla_generic_request(_audience, _target_url, _access_token, _payload=''):
     return json_data
 
 
-
-
 def tesla_generic_command(_audience, _target_url, _access_token, _payload =''):
     """
     send a generic command
@@ -359,7 +354,6 @@ def tesla_generic_command(_audience, _target_url, _access_token, _payload =''):
         json_data = None
 
     return json_data
-
 
 
 def tesla_get_partner_auth_token(client_id, client_secret, audience_list):
@@ -422,17 +416,19 @@ def tesla_register_customer(myTesla: TeslaAPI):
     webbrowser.open(url)
     print(f"web-browser opened with URL:\n{url}\n complete registration and watch, if the following random number is not disturbed in the response.")
     print(random_state)
-    print("Next step is to exchange the Code for tokens.\n You find the code in the URL, the tesla server redirects you to.")
-    user_input_code = input("Please enter the code from the URL: ")
+    print("Next step is to exchange the Code for tokens.\n You find the code in the URL, the tesla server redirects you to.\n")
+    user_input_code = input("Please enter the 'code' from the URL: ")
     myTesla.exchange_code_for_tokens(myTesla.client_id, CLIENT_SECRET, user_input_code)
     print("So, now we should have the access tokens saved. Your customer account is registered.")
 
 
 def tesla_register_customer_key():
     """
-    Call in an interactive session!
+    (only displays a QR code or link to be opened on the phone with the Tesla app installed)
     Register the public key of the partner to the car, so that the car can be controlled by the app.
-    Installs the key to the car.
+    This requires that the customer has already been registered by tesla_register_customer()
+    The QR/link is to be opened on the phone, where the Tesla app is installed.
+    Installs the key to the car to enable end-to-end encrypted commands.
     :return:
     """
     url=f"https://tesla.com/_ak/{config.tesla_redirect_domain}"
@@ -482,65 +478,44 @@ def tesla_partner_check_public_key(_partner_token, _audience):
     return tesla_generic_request(_audience, target, _partner_token)
 
 
-def tesla_register_process():
-    """
-    Example implementation of the registration process.
-    To be executed one by one in debug mode only.
-    :return:
-    """
-    # ATTENTION!!
-    # read comments first
-
-    if not __debug__:
-        print("single-step this in debug, do not just run it!")
-        return
-
-    # registration process:
-    # 1: Set up a third-party account at https://developer.tesla.com.
-
-    # 2: Complete registration of your account
-
-    # 2a: Generate a public/private key pair for Tesla Vehicle Commands.
-    # Generate a private key using the secp256r1 curve
-    #openssl ecparam -name prime256v1 -genkey -noout -out privatekey.pem
-
-    # Extract the corresponding public key and save it in PEM format
-    #openssl ec -in privatekey.pem -pubout -out publickey.pem
-
-    # 2b: Host your public key in the /.well-known section of your website.
-    #store the pubkey at: https://your.domain/.well-known/appspecific/com.tesla.3p.public-key.pem
-    #and store into TeslaKeys directory
-
-    # 2b: Generate a partner authentication token.
-    # hint: can also be called with a semicolon semparated audience list for multiple audiences!
-    partner_token = tesla_get_partner_auth_token(CLIENT_ID, CLIENT_SECRET, AUDIENCE)
-    # 2c: Make a POST call to /api/1/partner_accounts with your partner authentication token.
-    _r = tesla_register_partner_account(partner_token, AUDIENCE) # is needed once per audience, if you have a list!
-    print("account registration", _r)
-    # 3: Request authorization permissions from a customer and generate a third-party token on their behalf.
-    tesla_register_customer(myT) # register new customer (customer must log in and enter code here!)
-
-    # 4: Customer must allow key on vehicle(s)
-    tesla_register_customer_key()
-    # at this stage a file tesla_tokens.json should exist and all API calls can work now.
-
-    # bonus step
-    _r = tesla_partner_check_public_key(partner_token, AUDIENCE) # results in redirect and 404 for EU !!! (tested 12/2023)
-    print("registration", _r)
-
-
 # test stuff, if run directly (only on PC!)
 if __name__ == '__main__':
+
+    import os
 
     os.chdir("../../")  # hop to the correct directory, as if called as lib/tesla_api/...
 
     myT = TeslaAPI()
 
     # first run: go to the function tesla_register_process() and follow the comments.
-    print("First run: go to the function tesla_register_process() and follow the comments.")
-    # tesla_register_process()
+    print("First run: go to https://github.com/fabianhu/tesla_api_example for an example project.")
 
-    ## here some examples to test around
+
+    #r = tesla_get_region(myT.access_token) # 403 for user access token
+    #print("region", r)
+
+    r = myT.get_vehicles_list()
+    print("vehicle list", r)
+
+    vin = r[0]['vin']
+
+    r = myT.get_vehicle(vin) # VIN or ID from list
+
+    print(f"Your vehicle is on API version {r['api_version']}.")
+
+    print("vehicle info", r)
+
+    if r['state'] == 'asleep':
+        print("ZZZzz")
+        #myT.cmd_wakeup(config.tesla_vin)
+    else:
+        # r = tesla_get_vehicle_data(access_token, config.tesla_vin, 'charge_state;location_data') # requests LIVE data only -> 408 if asleep!
+        # r = tesla_get_vehicle_data(access_token, config.tesla_vin, 'charge_state')  # requests LIVE data only -> 408 if asleep!
+        # r = tesla_get_vehicle_data(access_token, config.tesla_vin, 'charge_state;climate_state;closures_state;drive_state;gui_settings;location_data;vehicle_config;vehicle_state;vehicle_data_combo') # requests LIVE data only -> 408 if asleep!
+        r = myT.get_vehicle_data(vin, 'charge_state;drive_state;location_data;vehicle_state')  # requests LIVE data only -> 408 if asleep!
+        print(r)
+
+    ## here some command examples to test around
     #myT.tesla_command("wake")
     #myT.tesla_command("ping") # missing scope for security
 
@@ -549,29 +524,5 @@ if __name__ == '__main__':
     #myT.tesla_command("charging-stop")
     #myT.tesla_command("charging-schedule 30")
     #myT.tesla_command("charging-schedule-cancel")
-
-
-
-    #r = tesla_get_region(myT.access_token) # 403 for user access token
-    #print("region", r)
-    r = myT.get_vehicles_list()
-    print("vehicle list", r)
-
-    vin = r[0]['vin']
-
-    r = myT.get_vehicle(vin) # VIN or ID from list
-    if r['api_version'] != 71:
-        print("Wrong API version")
-    print("vehicle", r)
-
-    if r['state'] == 'asleep':
-        print("ZZZzz")
-        #myT.cmd_wakeup(config.tesla_vin) # yesssss
-    else:
-        # r = tesla_get_vehicle_data(access_token, config.tesla_vin, 'charge_state;location_data') # requests LIVE data only -> 408 if asleep!
-        # r = tesla_get_vehicle_data(access_token, config.tesla_vin, 'charge_state')  # requests LIVE data only -> 408 if asleep!
-        # r = tesla_get_vehicle_data(access_token, config.tesla_vin, 'charge_state;climate_state;closures_state;drive_state;gui_settings;location_data;vehicle_config;vehicle_state;vehicle_data_combo') # requests LIVE data only -> 408 if asleep!
-        r = myT.get_vehicle_data(vin, 'charge_state;drive_state;location_data;vehicle_state')  # requests LIVE data only -> 408 if asleep!
-        print(r)
 
 
