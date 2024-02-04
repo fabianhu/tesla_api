@@ -1,7 +1,7 @@
 # tesla_api
-Tesla 2024 API implementation in Python.
-This is a library.
-See the example implementation in [tesla_api_example](https://github.com/fabianhu/tesla_api_example)
+* Tesla 2024 API implementation in Python.
+* This is a library.
+* See the example implementation in [tesla_api_example](https://github.com/fabianhu/tesla_api_example)
 
 ## Overview
 * Implements the 2024 interface including authentication and token handling
@@ -16,6 +16,7 @@ See the example implementation in [tesla_api_example](https://github.com/fabianh
 - use ```bash
 git submodule update --remote``` to update
 - For best usage, please read the comments in the main file `tesla_api_2024.py` at the beginning and at the end of the file.
+- Example implementation in [tesla_api_example](https://github.com/fabianhu/tesla_api_example)
 - Maybe you have a look at the implementation at [ElectronFluxBalancer](https://github.com/fabianhu/electron-flux-balancer)
 - For sending commands, you need to get and build [tesla-control](https://github.com/teslamotors/vehicle-command/), see below and the readme in the subdirectory `tesla-control`
 
