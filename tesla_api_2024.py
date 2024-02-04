@@ -249,7 +249,7 @@ class TeslaAPI:
         # call the command externally
         cmd = f'./lib/tesla_api/tesla-control/tesla-control -key-file ./lib/tesla_api/TeslaKeys/privatekey.pem -token-file {tokenfile} -vin {vin} {command_string}'
 
-        logger.debug(f"Command:\n{cmd}")
+        logger.debug(f"Command: {cmd}")
 
         result = subprocess.run(
             cmd,
@@ -263,7 +263,7 @@ class TeslaAPI:
         if result.returncode != 0:
             logger.error(f"Tesla command '{command_string}' result({result.returncode}):\n{result.stdout}")
             return False
-        logger.debug(f"Command output:\n{result.stdout}")
+        logger.debug(f"Command output: {result.stdout}")
         return True
 
 
