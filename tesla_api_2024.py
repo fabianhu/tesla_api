@@ -474,8 +474,11 @@ def tesla_partner_check_public_key(_partner_token, _audience):
     :param _audience: the audience
     :return:
     """
+    payload = json.dumps({
+        "domain": config.tesla_redirect_domain
+    })
     target = '/api/1/partner_accounts/public_key'
-    return tesla_generic_request(_audience, target, _partner_token)
+    return tesla_generic_request(_audience, target, _partner_token, payload)
 
 
 # test stuff, if run directly (only on PC!)
