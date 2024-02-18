@@ -337,7 +337,7 @@ def tesla_generic_command(_audience, _target_url, _access_token, _payload =''):
     if _access_token is None:
         logger.error("No Token specified!")
         return None
-    logger.debug(f"Tesla Command: {_target_url}")
+    logger.debug(f"Tesla Command url: {_target_url}")
     conn = http.client.HTTPSConnection(_audience)
     headers = {
         'Content-Type': 'application/json',
@@ -347,6 +347,7 @@ def tesla_generic_command(_audience, _target_url, _access_token, _payload =''):
     res = conn.getresponse()
     data = res.read()
     data_string = data.decode("utf-8")
+    logger.debug("response status: " + str(res.status) + ", " + res.reason + ", "+ data_string)
 
     if res.status == 200:
         json_data = json.loads(data_string)['response']
@@ -398,7 +399,7 @@ def tesla_register_partner_account(_partner_token, _audience):
     })
     target = "/api/1/partner_accounts"
     rv = tesla_generic_command(_audience,target,_partner_token,payload)
-    print(rv)
+    print("return value register partner account: " + str(rv))
     return rv
 
 
@@ -412,11 +413,12 @@ def tesla_register_customer(myTesla: TeslaAPI):
     """
     random_state = secrets.token_hex(16)
     urlscopes = "openid%20offline_access%20" + config.tesla_scopes.replace(' ','%20')
-    url = f"https://auth.tesla.com/oauth2/v3/authorize?&client_id={myTesla.client_id}&locale=de-DE&prompt=login&redirect_uri={config.tesla_redirect_uri}&response_type=code&scope={urlscopes}&state={random_state}"
+    url = f"https://auth.tesla.com/oauth2/v3/authorize?&client_id={myTesla.client_id}&locale=en-US&prompt=login&redirect_uri={config.tesla_redirect_uri}&response_type=code&scope={urlscopes}&state={random_state}"
     webbrowser.open(url)
     print(f"web-browser opened with URL:\n{url}\n complete registration and watch, if the following random number is not disturbed in the response.")
     print(random_state)
-    print("Next step is to exchange the Code for tokens.\n You find the code in the URL, the tesla server redirects you to.\n")
+    print("Next step is to exchange the Code for tokens.\n You find the code in the URL, the tesla server redirects you to.\n The page likely shows a 400 Bad Request, this is normal")
+    print("The code is find between &code and &state in the url")
     user_input_code = input("Please enter the 'code' from the URL: ")
     myTesla.exchange_code_for_tokens(myTesla.client_id, CLIENT_SECRET, user_input_code)
     print("So, now we should have the access tokens saved. Your customer account is registered.")
@@ -432,17 +434,23 @@ def tesla_register_customer_key():
     :return:
     """
     url=f"https://tesla.com/_ak/{config.tesla_redirect_domain}"
-    import qrcode
+    try:
+        import qrcode
+        use_qr = True
+    except:
+        use_qr = False        
     import os
 
-    qr = qrcode.QRCode(version=1, error_correction=qrcode.constants.ERROR_CORRECT_L, box_size=10, border=4)
-    qr.add_data(url)
-    qr.make(fit=True)
-    qc=qr.print_ascii(invert=True)
+    if use_qr:
+        qr = qrcode.QRCode(version=1, error_correction=qrcode.constants.ERROR_CORRECT_L, box_size=10, border=4)
+        qr.add_data(url)
+        qr.make(fit=True)
+        qc=qr.print_ascii(invert=True)
+        # Create an image from the QR code instance
+        img = qr.make_image(fill_color="black", back_color="white")
+    else:
+        print("qr module not found, to install run: pip3 install qrcode")
     print(f"Alternatively visit url:{url}")
-
-    # Create an image from the QR code instance
-    img = qr.make_image(fill_color="black", back_color="white")
 
     # Save the image to /tmp directory
     file_path = 'registerkey.png'
