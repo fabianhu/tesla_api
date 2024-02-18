@@ -214,7 +214,7 @@ class TeslaAPI:
         return self.tesla_command(f"charging-set-amps {int(_amps)}", _vin)
 
 
-    def tesla_command(self, command_string, vin):
+    def tesla_command(self, command_string, _vin):
         """
         Interface to the tesla-control CLI tool. Used here due to missing native implementation.
         Doc is available now - works as it is for the moment.
@@ -225,7 +225,7 @@ class TeslaAPI:
         Concept: we spit out the token and the key into files, invoke the CLI and off we go.
 
         '''
-        :param vin: the VIN
+        :param _vin: the VIN
         :param command_string: the command
         A selection of available COMMANDs , see tesla-control -h
         charge-port-close      Close charge port
@@ -239,7 +239,7 @@ class TeslaAPI:
         product-info           Print JSON product info
         wake                   Wake up vehicle
         """
-        logger.debug(f"Secure Command: {command_string}")
+        logger.debug(f"Send secure Command: {command_string}")
 
         # spit out the actual token
         tokenfile = ".temp_token"
@@ -247,7 +247,7 @@ class TeslaAPI:
             file.write(self.access_token)
 
         # call the command externally
-        cmd = f'./lib/tesla_api/tesla-control/tesla-control -key-file ./lib/tesla_api/TeslaKeys/privatekey.pem -token-file {tokenfile} -vin {vin} {command_string}'
+        cmd = f'./lib/tesla_api/tesla-control/tesla-control -key-file ./lib/tesla_api/TeslaKeys/privatekey.pem -token-file {tokenfile} -vin {_vin} {command_string}'
 
         logger.debug(f"Command: {cmd}")
 
@@ -418,7 +418,7 @@ def tesla_register_customer(myTesla: TeslaAPI):
     print(f"web-browser opened with URL:\n{url}\n complete registration and watch, if the following random number is not disturbed in the response.")
     print(random_state)
     print("Next step is to exchange the Code for tokens.\n You find the code in the URL, the tesla server redirects you to.\n The page likely shows a 400 Bad Request, this is normal")
-    print("The code is find between &code and &state in the url")
+    print("The code can be found between &code and &state in the url")
     user_input_code = input("Please enter the 'code' from the URL: ")
     myTesla.exchange_code_for_tokens(myTesla.client_id, CLIENT_SECRET, user_input_code)
     print("So, now we should have the access tokens saved. Your customer account is registered.")
@@ -434,23 +434,22 @@ def tesla_register_customer_key():
     :return:
     """
     url=f"https://tesla.com/_ak/{config.tesla_redirect_domain}"
+    print(f"Please open the following URL on your phone with the Tesla app installed:\n{url}")
+
     try:
         import qrcode
-        use_qr = True
-    except:
-        use_qr = False        
-    import os
-
-    if use_qr:
-        qr = qrcode.QRCode(version=1, error_correction=qrcode.constants.ERROR_CORRECT_L, box_size=10, border=4)
-        qr.add_data(url)
-        qr.make(fit=True)
-        qc=qr.print_ascii(invert=True)
-        # Create an image from the QR code instance
-        img = qr.make_image(fill_color="black", back_color="white")
-    else:
+    except ImportError:
         print("qr module not found, to install run: pip3 install qrcode")
-    print(f"Alternatively visit url:{url}")
+        return
+
+    # now we create a QR code for the URL
+    import os
+    qr = qrcode.QRCode(version=1, error_correction=qrcode.constants.ERROR_CORRECT_L, box_size=10, border=4)
+    qr.add_data(url)
+    qr.make(fit=True)
+    # qc=qr.print_ascii(invert=True)
+    # Create an image from the QR code instance
+    img = qr.make_image(fill_color="black", back_color="white")
 
     # Save the image to /tmp directory
     file_path = 'registerkey.png'
