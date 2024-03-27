@@ -105,11 +105,15 @@ class TeslaAPI:
                 'audience': self.audience
             }
             response = requests.post(token_url, data=payload)
-
-            token_data = response.json()
+            if response is None:
+                logger.error(f"Token refresh response was returned empty.")
+                return
             if response.status_code != 200:
                 logger.error(f"Token refresh failed: {response.status_code}, {response.text}")
                 return
+
+            token_data = response.json()
+
             token_data["expiry_time"] = (datetime.datetime.now() + datetime.timedelta(seconds=token_data.get('expires_in'))).isoformat()
             self.token_expires_at = datetime.datetime.fromisoformat(token_data.get('expiry_time'))
             self.access_token = token_data.get('access_token')
