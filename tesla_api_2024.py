@@ -21,7 +21,7 @@ from urllib.parse import urlencode
 #own lib and modules
 
 from lib.logger import Logger # own logger
-logger = Logger(logging.INFO, "tesla.log")
+logger = Logger(logging.DEBUG, "tesla.log")
 
 import config  # a file config.py in the base directory, which contains all the variables config.xxx as follows:
 '''
@@ -76,7 +76,7 @@ class TeslaAPI:
             logger.error(f"There was an issue decoding JSON in {self.token_file}.")
             return
         except Exception as e:
-            logger.error(f"An unexpected error occurred: {e}")
+            logger.error(f"token load - An unexpected error occurred: {e}")
             return
 
         # Accessing the loaded tokens
@@ -84,7 +84,7 @@ class TeslaAPI:
         self.refresh_token = loaded_tokens["refresh_token"]
         self.token_expires_at = datetime.datetime.fromisoformat(loaded_tokens["expiry_time"])
 
-        self.tokens_refresh() # re-aquires, if necessary
+        self.tokens_refresh() # re-acquires, if necessary
 
 
     def tokens_refresh(self):
@@ -92,10 +92,9 @@ class TeslaAPI:
         Refresh tokens (using the refresh token)
         :return:
         """
-        threshold_minutes = 5
-        threshold_time = datetime.datetime.now() + datetime.timedelta(minutes=threshold_minutes)
+        threshold_minutes = 5 # if tokens expire in the next minutes, we refresh anyways
 
-        if self.token_expires_at < threshold_time:
+        if self.token_expires_at < datetime.datetime.now():
             logger.debug(f"Token expires at {self.token_expires_at} - will refresh")
             token_url = "https://auth.tesla.com/oauth2/v3/token"
             payload = {
@@ -113,17 +112,19 @@ class TeslaAPI:
                 return
 
             token_data = response.json()
-
-            token_data["expiry_time"] = (datetime.datetime.now() + datetime.timedelta(seconds=token_data.get('expires_in'))).isoformat()
+            # add expiry time as a new element. + add some buffer
+            token_data["expiry_time"] = (datetime.datetime.now() + datetime.timedelta(seconds=token_data.get('expires_in')) - datetime.timedelta(minutes=threshold_minutes)).isoformat()
             self.token_expires_at = datetime.datetime.fromisoformat(token_data.get('expiry_time'))
+
             self.access_token = token_data.get('access_token')
             self.refresh_token = token_data.get('refresh_token')
             # Saving tokens to a file
             with open(self.token_file, "w") as file:
                 json.dump(token_data, file, indent=4)
-            #logger.debug("Token refreshed")
+            logger.debug("Token refreshed")
         else:
             # no need to refresh
+            logger.debug(f"Token is good until {self.token_expires_at}")
             pass
 
 
@@ -262,12 +263,12 @@ class TeslaAPI:
             shell=True)
 
         if result.stderr:
-            logger.error(f"Tesla command '{command_string}' result({result.returncode}):\n{result.stdout}{result.stderr}")
+            logger.error(f"Tesla command '{command_string}' result({result.returncode}):\n{result.stdout}\n{result.stderr}")
             return False
         if result.returncode != 0:
             logger.error(f"Tesla command '{command_string}' result({result.returncode}):\n{result.stdout}")
             return False
-        logger.debug(f"Command output: {result.stdout}")
+        logger.debug(f"Tesla command output: {result.stdout}")
         return True
 
 
