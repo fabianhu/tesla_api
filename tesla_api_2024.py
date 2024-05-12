@@ -58,6 +58,8 @@ class TeslaAPI:
 
         self.tokens_load()  # load the stored tokens and refresh, if necessary
 
+        self.commandcount = 0;
+
 
     def tokens_load(self):
         """
@@ -244,7 +246,9 @@ class TeslaAPI:
         product-info           Print JSON product info
         wake                   Wake up vehicle
         """
-        logger.debug(f"Send secure Command: {command_string}")
+        self.commandcount += 1
+
+        logger.info(f"Send secure Command {self.commandcount}: {command_string}")
 
         # spit out the actual token
         tokenfile = ".temp_token"
@@ -254,7 +258,7 @@ class TeslaAPI:
         # call the command externally
         cmd = f'./lib/tesla_api/tesla-control/tesla-control -key-file ./lib/tesla_api/TeslaKeys/privatekey.pem -token-file {tokenfile} -vin {_vin} {command_string}'
 
-        logger.debug(f"Command: {cmd}")
+        logger.debug(f"Command {self.commandcount}: {cmd}")
 
         result = subprocess.run(
             cmd,
@@ -263,12 +267,15 @@ class TeslaAPI:
             shell=True)
 
         if result.stderr:
-            logger.error(f"Tesla command '{command_string}' result({result.returncode}):\n{result.stdout}\n{result.stderr}")
+            logger.error(f"Tesla command {self.commandcount}: '{command_string}' result({result.returncode}):\n{result.stdout}\n{result.stderr}")
             return False
         if result.returncode != 0:
-            logger.error(f"Tesla command '{command_string}' result({result.returncode}):\n{result.stdout}")
+            logger.error(f"Tesla command {self.commandcount}: '{command_string}' result({result.returncode}):\n{result.stdout}")
             return False
-        logger.debug(f"Tesla command output: {result.stdout}")
+
+        if result.stdout != "":
+            logger.debug(f"Tesla command output: {result.stdout}")  # OK output is always empty.
+
         return True
 
 
