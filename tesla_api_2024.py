@@ -97,7 +97,7 @@ class TeslaAPI:
         threshold_minutes = 5 # if tokens expire in the next minutes, we refresh anyways
 
         if self.token_expires_at < datetime.datetime.now():
-            logger.debug(f"Token expires at {self.token_expires_at} - will refresh")
+            logger.info(f"Token expires at {self.token_expires_at} - will refresh")
             token_url = "https://auth.tesla.com/oauth2/v3/token"
             payload = {
                 'grant_type': 'refresh_token',
@@ -123,7 +123,7 @@ class TeslaAPI:
             # Saving tokens to a file
             with open(self.token_file, "w") as file:
                 json.dump(token_data, file, indent=4)
-            logger.debug("Token refreshed")
+            logger.info("Token refreshed")
         else:
             # no need to refresh
             logger.debug(f"Token is good until {self.token_expires_at}")
@@ -298,7 +298,6 @@ def tesla_generic_request(_audience, _target_url, _access_token, _payload=''):
             'Content-Type': 'application/json',
             'Authorization': f'Bearer {_access_token}'
         }
-        logger.debug(f"Tesla request, {_target_url}")
 
         conn.request("GET", _target_url, _payload, headers)
         res = conn.getresponse()
@@ -310,15 +309,20 @@ def tesla_generic_request(_audience, _target_url, _access_token, _payload=''):
                 new_location = location_header
                 logger.debug(f"Redirecting to: {new_location}")
                 conn.close()
-                return tesla_generic_request(_audience, new_location, _access_token, _payload)
+                return tesla_generic_request(_audience, new_location, _access_token, _payload)  # recursive call
 
         data = res.read()
         datastring = data.decode('utf-8')
-        logger.debug(f"Result: {res.status}, {res.reason}, {datastring}")
+
 
         if res.status == 200:
+            #logger.debug(f"Result: {res.status}, {res.reason}, {datastring}")
             json_data = json.loads(datastring)['response']
+        elif res.status == 408: # vehicle is asleep
+            #logger.debug(f"Result: {res.status}, {res.reason}, {datastring}")
+            json_data = None
         else:
+            logger.debug(f"Tesla Request: {_target_url} Result: {res.status}, {res.reason}, {datastring}")
             json_data = None
 
     except http.client.HTTPException as e:
