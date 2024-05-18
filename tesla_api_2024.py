@@ -44,6 +44,13 @@ CLIENT_ID = config.tesla_client_id  # this is the developer account, not the cus
 CLIENT_SECRET = config.tesla_client_secret # this is the developer account, not the customer !!
 AUDIENCE = config.tesla_audience
 
+def assemble_domain_string(domain):
+    if domain is None:
+        return ""
+    if not isinstance(domain, list):
+        domain = [domain]
+    return " ".join(f"-domain {value}" for value in domain)
+
 class TeslaAPI:
     def __init__(self, _tesla_account_name: str = "tesla"):
         """
@@ -126,7 +133,7 @@ class TeslaAPI:
             logger.info("Token refreshed")
         else:
             # no need to refresh
-            logger.debug(f"Token is good until {self.token_expires_at}")
+            logger.debug(f"No refresh - token is good until {self.token_expires_at}")
             pass
 
 
@@ -199,13 +206,20 @@ class TeslaAPI:
         return self.generic_request(target)
 
     def cmd_wakeup(self, _vin):
-        return self.tesla_command("wake",_vin)
+        return self.tesla_command("wake",_vin, config.tesla_ble, config.tesla_remote, "vcsec")
+
+    def cmd_ping(self, _vin):
+        return self.tesla_command("ping", _vin, config.tesla_ble, config.tesla_remote, "vcsec") # fixme does not work when asleep
+
+    def cmd_ping2(self, _vin):
+        # ./tesla-control -ble -debug -key-file ./relay_priv.pem -vin myVIN -domain vcsec session-info ./relay.pem 'vcsec'
+        return self.tesla_command("session-info ./relay.pem \'vcsec\'", _vin, config.tesla_ble, config.tesla_remote, "vcsec")
 
     def cmd_charge_start(self, _vin):
-        return self.tesla_command("charging-start", _vin)
+        return self.tesla_command("charging-start", _vin, config.tesla_ble, config.tesla_remote)
 
     def cmd_charge_stop(self, _vin):
-        return self.tesla_command("charging-stop", _vin)
+        return self.tesla_command("charging-stop", _vin, config.tesla_ble, config.tesla_remote)
 
     def cmd_charge_set_limit(self, _vin, _prc):
         return self.tesla_command(f"charging-set-limit {int(_prc)}", _vin)
@@ -214,14 +228,14 @@ class TeslaAPI:
         return self.tesla_command(f"charging-schedule {int(_mins)}", _vin)
 
     def cmd_charge_cancel_schedule(self, _vin):
-        # remark: this might start a charge immediately!
+        # remark: this will start a charge immediately!
         return self.tesla_command("charging-schedule-cancel", _vin)
 
     def cmd_charge_set_amps(self, _vin, _amps):
-        return self.tesla_command(f"charging-set-amps {int(_amps)}", _vin)
+        return self.tesla_command(f"charging-set-amps {int(_amps)}", _vin, config.tesla_ble, config.tesla_remote)
 
 
-    def tesla_command(self, command_string, _vin):
+    def tesla_command(self, command_string, _vin, _ble=False, _remote=None, _domain=None):
         """
         Interface to the tesla-control CLI tool. Used here due to missing native implementation.
         Doc is available now - works as it is for the moment.
@@ -232,31 +246,55 @@ class TeslaAPI:
         Concept: we spit out the token and the key into files, invoke the CLI and off we go.
 
         '''
+        :param _domain: the vehicle domain, can be one of "vcsec", "infotainment" or both as list ["vcsec","infotainment"]
+        :param _remote: address to execute the command on (assuming ssh is set up)
+        :param _ble: True for command via BLE Bluetooth (also assuming all the setup done)
         :param _vin: the VIN
         :param command_string: the command
         A selection of available COMMANDs , see tesla-control -h
-        charge-port-close      Close charge port
-        charge-port-open       Open charge port
-        charging-schedule MINS Schedule charging to MINS minutes after midnight and enable daily scheduling
-        charging-schedule-cancel Cancel scheduled charge start - will start charging when connected.
-        charging-set-amps      Set charge current to AMPS
-        charging-set-limit     Set charge limit to PERCENT
-        charging-start         Start charging
-        charging-stop          Stop charging
-        product-info           Print JSON product info
-        wake                   Wake up vehicle
+        add-key-request          Request NFC-card approval for a enrolling PUBLIC_KEY with ROLE and FORM_FACTOR
+        charge-port-close        Close charge port
+        charge-port-open         Open charge port (also unlocks charging cable, when connected)
+        charging-schedule        Schedule charging to MINS minutes after midnight and enable daily scheduling
+        charging-schedule-cancel Cancel scheduled charge start
+        charging-set-amps        Set charge current to AMPS
+        charging-set-limit       Set charge limit to PERCENT
+        charging-start           Start charging
+        charging-stop            Stop charging
+        flash-lights             Flash lights
+        honk                     Honk horn
+        list-keys                List public keys enrolled on vehicle (can also be used to detect sleeping vehicle with domain vcsec)
+        lock                     Lock vehicle
+        ping                     Ping vehicle - fails when vehicle sleeps
+        product-info             Print JSON product info
+        sentry-mode              Set sentry mode to STATE ('on' or 'off')
+        session-info             Retrieve session info for PUBLIC_KEY from DOMAIN
+        unlock                   Unlock vehicle
+        wake                     Wake up vehicle - limit to domain vcsec!
         """
-        self.commandcount += 1
 
         logger.info(f"Send secure Command {self.commandcount}: {command_string}")
 
-        # spit out the actual token
+        # spit out the actual token #
         tokenfile = ".temp_token"
         with open(".temp_token", 'w') as file:
             file.write(self.access_token)
 
         # call the command externally
-        cmd = f'./lib/tesla_api/tesla-control/tesla-control -key-file ./lib/tesla_api/TeslaKeys/privatekey.pem -token-file {tokenfile} -vin {_vin} {command_string}'
+        if _ble:
+            #cmd = f'./lib/tesla_api/tesla-control/tesla-control -debug -ble -key-file ./lib/tesla_api/TeslaKeys/BLEprivatekey.pem -vin {_vin} {command_string}'
+            cmd = f'./lib/tesla_api/tesla-control/tesla-control -ble {assemble_domain_string(_domain)} -key-file ./lib/tesla_api/TeslaKeys/BLEprivatekey.pem -vin {_vin} {command_string}'
+        else:
+            #cmd = f'./lib/tesla_api/tesla-control/tesla-control -debug -key-file ./lib/tesla_api/TeslaKeys/privatekey.pem -token-file {tokenfile} -vin {_vin} {command_string}'
+            cmd = f'./lib/tesla_api/tesla-control/tesla-control -key-file ./lib/tesla_api/TeslaKeys/privatekey.pem -token-file {tokenfile} -vin {_vin} {command_string}'
+            self.commandcount += 1
+
+        if _remote is not None and _ble:
+            #cmd = f'ssh {_remote} \'./tesla-control -debug -ble {assemble_domain_string(_domain)} -command-timeout 10s -key-file ./relay_priv.pem -vin {_vin} {command_string}\''
+            cmd = f'ssh {_remote} \'./tesla-control -ble {assemble_domain_string(_domain)} -command-timeout 10s -key-file ./relay_priv.pem -vin {_vin} {command_string}\''
+        else:
+            logger.error(f"not BLE and remote ({_remote}) execution is not implemented")
+            return False
 
         logger.debug(f"Command {self.commandcount}: {cmd}")
 
@@ -266,15 +304,18 @@ class TeslaAPI:
             text=True,
             shell=True)
 
-        if result.stderr:
-            logger.error(f"Tesla command {self.commandcount}: '{command_string}' result({result.returncode}):\n{result.stdout}\n{result.stderr}")
-            return False
-        if result.returncode != 0:
-            logger.error(f"Tesla command {self.commandcount}: '{command_string}' result({result.returncode}):\n{result.stdout}")
+        if result.returncode != 0:  # we rely on the return code. The stderr is filled gy -debug!
+            if result.stderr:
+                logger.error(f"Tesla command {self.commandcount}: '{command_string}' result({result.returncode}):\n{result.stdout}\nERROR:\n{result.stderr}")
+            else:
+                logger.error(f"Tesla command {self.commandcount}: '{command_string}' result({result.returncode}):\n{result.stdout}")
+            # fail successfully
+            if command_string == "charging-start" and result.stderr.endswith("is_charging"):
+                logger.error(f"Tesla command {command_string} failed successfully")
+                return True
             return False
 
-        if result.stdout != "":
-            logger.debug(f"Tesla command output: {result.stdout}")  # OK output is always empty.
+        logger.debug(f"Tesla command result({result.returncode}):\n{result.stdout}\nERROR:\n{result.stderr}")  # OK output is always empty.
 
         return True
 

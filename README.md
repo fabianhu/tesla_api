@@ -86,6 +86,45 @@ git submodule update --remote``` to update
    This generates an elf file `tesla_control`, which can be directly executed on the Pi3.
 7. put this file into the lib/tesla_api/vehicle_command/ directory of your project on the Pi.
 
+## BLE
+ Setup for BLE commands for working around the Tesla rate limit:
+
+1. You have to generate a new key pair - the fleet keys will NOT work.
+
+   Maybe you have to compile tesla-keygen first - do as described for the tesla-command.
+      ```bash
+      ./tesla-keygen -key-file ./relay_priv.pem create > ./relay.pem
+      # will generate two files - public and private
+      #relay.pem
+      #relay_priv.pem
+      # for local operation put the private key to: ./lib/tesla_api/TeslaKeys/BLEprivatekey.pem
+      ```
+2. optional: copy both keys to the remote machine
+   Setup of password-less SSH should be done at this point.
+   ```bash
+   scp relay*.pem user@192.168.1.77:~
+   ```
+3. add the public! key to the vehicle
+   ```bash
+   ./tesla-control -ble -vin LRWYGCEK9NC999999 add-key-request ./relay.pem owner cloud_key
+   # Sent add-key request to LRWYGCEK9NC999999. Confirm by tapping NFC card on center console.
+   ```
+4. Send commands
+   Now you cen test the setup:
+   ```bash
+   ./tesla-control -ble -debug -vin LRWYGCEK9NC999999 -key-file ./relay_priv.pem honk
+   ```
+   You will hear, when it works.
+
+5. optional: Execute remotely:
+   ```bash
+   ssh -p 2222 user@192.168.1.98 'da command'
+   ```
+6. edit config.py
+   ```python
+   tesla_ble = True # True if commands to be sent via BLE
+   tesla_remote = "user@192.168.1.77" # user:host if BLE command should be done on another device via SSH
+   ```
    
 ## Use this library as a submodule
  Be aware, that in a git submodule in default, any commit will not be to the main branch, if you do not check out main.
