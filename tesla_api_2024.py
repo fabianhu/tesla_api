@@ -65,7 +65,7 @@ class TeslaAPI:
 
         self.tokens_load()  # load the stored tokens and refresh, if necessary
 
-        self.commandcount = 0;
+        self.commandcount = 0
 
 
     def tokens_load(self):
