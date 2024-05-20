@@ -80,8 +80,8 @@ git submodule update --remote``` to update
    ```
 6. Cross-compile for Raspberry Pi 3 on the PC
    ```bash
-   env GOOS=linux GOARCH=arm GOARM=7
-   go build .
+   env GOOS=linux GOARCH=arm GOARM=7 go build .
+   # one line!
    ```
    This generates an elf file `tesla_control`, which can be directly executed on the Pi3.
 7. put this file into the lib/tesla_api/vehicle_command/ directory of your project on the Pi.

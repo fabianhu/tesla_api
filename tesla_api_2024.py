@@ -247,11 +247,12 @@ class TeslaAPI:
 
         '''
         :param _domain: the vehicle domain, can be one of "vcsec", "infotainment" or both as list ["vcsec","infotainment"]
-        :param _remote: address to execute the command on (assuming ssh is set up)
+        :param _remote: address to execute the command on (assuming ssh is set up passwordless) e.g. "user@10.0.1.2"
         :param _ble: True for command via BLE Bluetooth (also assuming all the setup done)
         :param _vin: the VIN
         :param command_string: the command
-        A selection of available COMMANDs , see tesla-control -h
+
+        A selection of available command_string , see also tesla-control -h
         add-key-request          Request NFC-card approval for a enrolling PUBLIC_KEY with ROLE and FORM_FACTOR
         charge-port-close        Close charge port
         charge-port-open         Open charge port (also unlocks charging cable, when connected)
@@ -282,18 +283,19 @@ class TeslaAPI:
 
         # call the command externally
         if _ble:
-            #cmd = f'./lib/tesla_api/tesla-control/tesla-control -debug -ble -key-file ./lib/tesla_api/TeslaKeys/BLEprivatekey.pem -vin {_vin} {command_string}'
+            # BLE on this machine
             cmd = f'./lib/tesla_api/tesla-control/tesla-control -ble {assemble_domain_string(_domain)} -key-file ./lib/tesla_api/TeslaKeys/BLEprivatekey.pem -vin {_vin} {command_string}'
         else:
-            #cmd = f'./lib/tesla_api/tesla-control/tesla-control -debug -key-file ./lib/tesla_api/TeslaKeys/privatekey.pem -token-file {tokenfile} -vin {_vin} {command_string}'
-            cmd = f'./lib/tesla_api/tesla-control/tesla-control -key-file ./lib/tesla_api/TeslaKeys/privatekey.pem -token-file {tokenfile} -vin {_vin} {command_string}'
+            # internet from this machine
+            # - session-cache avoids re-sending two session info requests per command, which also are billed on the quota.
+            cmd = f'./lib/tesla_api/tesla-control/tesla-control -session-cache /.tesla-cache.json -key-file ./lib/tesla_api/TeslaKeys/privatekey.pem -token-file {tokenfile} -vin {_vin} {command_string}'
             self.commandcount += 1
 
         if _remote is not None and _ble:
-            #cmd = f'ssh {_remote} \'./tesla-control -debug -ble {assemble_domain_string(_domain)} -command-timeout 10s -key-file ./relay_priv.pem -vin {_vin} {command_string}\''
+            # remote execute the command on your other machine with better BLE reception
             cmd = f'ssh {_remote} \'./tesla-control -ble {assemble_domain_string(_domain)} -command-timeout 10s -key-file ./relay_priv.pem -vin {_vin} {command_string}\''
         else:
-            logger.error(f"not BLE and remote ({_remote}) execution is not implemented")
+            logger.error(f"not BLE and remote ({_remote}) execution is not implemented and why do you want that?")
             return False
 
         logger.debug(f"Command {self.commandcount}: {cmd}")
