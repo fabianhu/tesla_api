@@ -306,18 +306,20 @@ class TeslaAPI:
             text=True,
             shell=True)
 
-        if result.returncode != 0:  # we rely on the return code. The stderr is filled gy -debug!
+        if result.returncode != 0:  # we rely on the return code. The stderr is filled by -debug!
             if result.stderr:
-                logger.error(f"Tesla command {self.commandcount}: '{command_string}' result({result.returncode}):\n{result.stdout}\nERROR:\n{result.stderr}")
+                logger.error(f"Tesla command {self.commandcount}: '{command_string}' result({result.returncode}): {result.stdout}\nERROR: {result.stderr}")
             else:
-                logger.error(f"Tesla command {self.commandcount}: '{command_string}' result({result.returncode}):\n{result.stdout}")
+                logger.error(f"Tesla command {self.commandcount}: '{command_string}' result({result.returncode}): {result.stdout}")
             # fail successfully
-            if command_string == "charging-start" and result.stderr.endswith("is_charging"):
+            if command_string == "charging-start" and result.stderr.endswith("charging"):
                 logger.error(f"Tesla command {command_string} failed successfully")
                 return True
             return False
 
-        logger.debug(f"Tesla command result({result.returncode}):\n{result.stdout}\nERROR:\n{result.stderr}")  # OK output is always empty.
+        logger.debug(f"result({result.returncode}):{result.stdout}")
+        if result.stderr:
+            logger.debug(f"ERROR:{result.stderr}")  # OK output is always empty.
 
         return True
 
