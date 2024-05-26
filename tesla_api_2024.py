@@ -312,7 +312,7 @@ class TeslaAPI:
             else:
                 logger.error(f"Tesla command {self.commandcount}: '{command_string}' result({result.returncode}): {result.stdout}")
             # fail successfully
-            if command_string == "charging-start" and result.stderr.endswith("charging"):
+            if command_string == "charging-start" and result.stderr.endswith("is_charging"):
                 logger.error(f"Tesla command {command_string} failed successfully")
                 return True
             return False
