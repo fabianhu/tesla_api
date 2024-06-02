@@ -21,7 +21,7 @@ from urllib.parse import urlencode
 #own lib and modules
 
 from lib.logger import Logger # own logger
-logger = Logger(logging.DEBUG, "tesla.log")
+logger = Logger(logging.DEBUG, "tesla_api.log")
 
 import config  # a file config.py in the base directory, which contains all the variables config.xxx as follows:
 '''
@@ -206,7 +206,11 @@ class TeslaAPI:
         return self.generic_request(target)
 
     def cmd_wakeup(self, _vin):
-        return self.tesla_command("wake",_vin, config.tesla_ble, config.tesla_remote, "vcsec")
+        if config.tesla_ble:
+            if self.tesla_command("wake",_vin, True, config.tesla_remote, "vcsec"):
+                return True
+            logger.info("Tried to wakeup by BLE, but did not work, trying via Internet")
+        return self.tesla_command("wake", _vin, False, False, "vcsec")
 
     def cmd_ping(self, _vin):
         return self.tesla_command("ping", _vin, config.tesla_ble, config.tesla_remote, "vcsec") # fixme does not work when asleep
