@@ -238,6 +238,11 @@ class TeslaAPI:
     def cmd_charge_set_amps(self, _vin, _amps):
         return self.tesla_command(f"charging-set-amps {int(_amps)}", _vin, config.tesla_ble, config.tesla_remote)
 
+    def cmd_climate_on(self, _vin):
+        return self.tesla_command(f"climate-on", _vin, config.tesla_ble, config.tesla_remote)
+
+    def cmd_climate_off(self, _vin):
+        return self.tesla_command(f"climate-off", _vin, config.tesla_ble, config.tesla_remote)
 
     def tesla_command(self, command_string, _vin, _ble=False, _remote=None, _domain=None):
         """
@@ -286,21 +291,22 @@ class TeslaAPI:
             file.write(self.access_token)
 
         # call the command externally
-        if _ble:
-            # BLE on this machine
-            cmd = f'./lib/tesla_api/tesla-control/tesla-control -ble {assemble_domain_string(_domain)} -key-file ./lib/tesla_api/TeslaKeys/BLEprivatekey.pem -vin {_vin} {command_string}'
+        if _remote is not None:
+            if _ble:
+                # remote execute the command on your other machine with better BLE reception
+                cmd = f'ssh {_remote} \'./tesla-control -ble {assemble_domain_string(_domain)} -session-cache ./.ble-cache.json -command-timeout 10s -key-file ./relay_priv.pem -vin {_vin} {command_string}\''
+            else:
+                logger.error(f"Remote ({_remote}) execution for internet is not implemented and why do you want that?")
+                return False
         else:
-            # internet from this machine
-            # - session-cache avoids re-sending two session info requests per command, which also are billed on the quota.
-            cmd = f'./lib/tesla_api/tesla-control/tesla-control -session-cache ./.tesla-cache.json -key-file ./lib/tesla_api/TeslaKeys/privatekey.pem -token-file {tokenfile} -vin {_vin} {command_string}'
-            self.commandcount += 1
-
-        if _remote is not None and _ble:
-            # remote execute the command on your other machine with better BLE reception
-            cmd = f'ssh {_remote} \'./tesla-control -ble {assemble_domain_string(_domain)} -session-cache ./.ble-cache.json -command-timeout 10s -key-file ./relay_priv.pem -vin {_vin} {command_string}\''
-        else:
-            logger.error(f"not BLE and remote ({_remote}) execution is not implemented and why do you want that?")
-            return False
+            if _ble:
+                # BLE on this machine
+                cmd = f'./lib/tesla_api/tesla-control/tesla-control -ble {assemble_domain_string(_domain)} -key-file ./lib/tesla_api/TeslaKeys/BLEprivatekey.pem -vin {_vin} {command_string}'
+            else:
+                # internet from this machine
+                # - session-cache avoids re-sending two session info requests per command, which also are billed on the quota.
+                cmd = f'./lib/tesla_api/tesla-control/tesla-control -session-cache ./.tesla-cache.json -key-file ./lib/tesla_api/TeslaKeys/privatekey.pem -token-file {tokenfile} -vin {_vin} {command_string}'
+                self.commandcount += 1
 
         logger.debug(f"Command {self.commandcount}: {cmd}")
 
