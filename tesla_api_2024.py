@@ -66,6 +66,7 @@ class TeslaAPI:
         self.tokens_load()  # load the stored tokens and refresh, if necessary
 
         self.commandcount = 0
+        self.requestcount = 0
 
 
     def tokens_load(self):
@@ -170,7 +171,8 @@ class TeslaAPI:
 
     def generic_request(self, target):
         self.tokens_refresh()
-        return tesla_generic_request(self.audience, target, self.access_token)
+        self.requestcount += 1
+        return tesla_generic_request(self.audience, target, self.access_token, str(self.requestcount))
 
 
     def get_vehicles_list(self):
@@ -261,6 +263,8 @@ class TeslaAPI:
         :param _vin: the VIN
         :param command_string: the command
 
+        :return bool: true on success
+
         A selection of available command_string , see also tesla-control -h
         add-key-request          Request NFC-card approval for a enrolling PUBLIC_KEY with ROLE and FORM_FACTOR
         charge-port-close        Close charge port
@@ -291,24 +295,20 @@ class TeslaAPI:
             file.write(self.access_token)
 
         # call the command externally
-        if _remote is not None:
-            if _ble:
-                # remote execute the command on your other machine with better BLE reception
-                cmd = f'ssh {_remote} \'./tesla-control -ble {assemble_domain_string(_domain)} -session-cache ./.ble-cache.json -command-timeout 10s -key-file ./relay_priv.pem -vin {_vin} {command_string}\''
-            else:
-                logger.error(f"Remote ({_remote}) execution for internet is not implemented and why do you want that?")
-                return False
-        else:
-            if _ble:
+        if _ble:
+            if _remote is None:
                 # BLE on this machine
                 cmd = f'./lib/tesla_api/tesla-control/tesla-control -ble {assemble_domain_string(_domain)} -key-file ./lib/tesla_api/TeslaKeys/BLEprivatekey.pem -vin {_vin} {command_string}'
             else:
-                # internet from this machine
-                # - session-cache avoids re-sending two session info requests per command, which also are billed on the quota.
-                cmd = f'./lib/tesla_api/tesla-control/tesla-control -session-cache ./.tesla-cache.json -key-file ./lib/tesla_api/TeslaKeys/privatekey.pem -token-file {tokenfile} -vin {_vin} {command_string}'
-                self.commandcount += 1
+                # remote execute the command on your other machine with better BLE reception
+                cmd = f'ssh {_remote} \'./tesla-control -ble {assemble_domain_string(_domain)} -session-cache ./.ble-cache.json -command-timeout 10s -key-file ./relay_priv.pem -vin {_vin} {command_string}\''
+        else:
+            # internet from this machine
+            # - session-cache avoids re-sending two session info requests per command, which also are billed on the quota.
+            cmd = f'./lib/tesla_api/tesla-control/tesla-control -session-cache ./.tesla-cache.json -key-file ./lib/tesla_api/TeslaKeys/privatekey.pem -token-file {tokenfile} -vin {_vin} {command_string}'
+            self.commandcount += 1
 
-        logger.debug(f"Command {self.commandcount}: {cmd}")
+        logger.debug(f"Prepared command {self.commandcount}: {cmd}")
 
         result = subprocess.run(
             cmd,
@@ -318,12 +318,12 @@ class TeslaAPI:
 
         if result.returncode != 0:  # we rely on the return code. The stderr is filled by -debug!
             if result.stderr:
-                logger.error(f"Tesla command {self.commandcount}: '{command_string}' result({result.returncode}): {result.stdout}\nERROR: {result.stderr}")
+                logger.error(f"Tesla command #{self.commandcount}: '{command_string}' result({result.returncode}): {result.stdout}\nERROR: {result.stderr}")
             else:
-                logger.error(f"Tesla command {self.commandcount}: '{command_string}' result({result.returncode}): {result.stdout}")
+                logger.error(f"Tesla command #{self.commandcount}: '{command_string}' result({result.returncode}): {result.stdout}")
             # fail successfully
             if command_string == "charging-start" and result.stderr.endswith("is_charging"):
-                logger.error(f"Tesla command {command_string} failed successfully")
+                logger.error(f"Tesla command #{self.commandcount}: '{command_string}' failed successfully")
                 return True
             return False
 
@@ -334,9 +334,10 @@ class TeslaAPI:
         return True
 
 
-def tesla_generic_request(_audience, _target_url, _access_token, _payload=''):
+def tesla_generic_request(_audience, _target_url, _access_token, _payload='', fixme=''):
     """
     Get data from car
+    :param fixme: yeah, we should include this fn into the class.
     :param _audience: the audience
     :param _target_url: target url according specification
     :param _access_token: a valid access token
@@ -364,7 +365,7 @@ def tesla_generic_request(_audience, _target_url, _access_token, _payload=''):
                 new_location = location_header
                 logger.debug(f"Redirecting to: {new_location}")
                 conn.close()
-                return tesla_generic_request(_audience, new_location, _access_token, _payload)  # recursive call
+                return tesla_generic_request(_audience, new_location, _access_token, _payload, 'recurse')  # recursive call fixme counter !!!
 
         data = res.read()
         datastring = data.decode('utf-8')
@@ -377,7 +378,7 @@ def tesla_generic_request(_audience, _target_url, _access_token, _payload=''):
             #logger.debug(f"Result: {res.status}, {res.reason}, {datastring}")
             json_data = None
         else:
-            logger.debug(f"Tesla Request: {_target_url} Result: {res.status}, {res.reason}, {datastring}")
+            logger.error(f"Tesla Request #{fixme}: {_target_url} Result: {res.status}, {res.reason}, {datastring}")
             json_data = None
 
     except http.client.HTTPException as e:
@@ -542,7 +543,7 @@ def tesla_get_region(_token):
     :return: Answer from server
     """
     target = '/api/1/users/region'
-    return tesla_generic_request(config.tesla_audience, target, _token)
+    return tesla_generic_request(config.tesla_audience, target, _token, None,"region")
 
 
 def tesla_partner_check_public_key(_partner_token, _audience):
@@ -556,7 +557,7 @@ def tesla_partner_check_public_key(_partner_token, _audience):
         "domain": config.tesla_redirect_domain
     })
     target = '/api/1/partner_accounts/public_key'
-    return tesla_generic_request(_audience, target, _partner_token, payload)
+    return tesla_generic_request(_audience, target, _partner_token, payload, 'keycheck')
 
 
 # test stuff, if run directly (only on PC!)
