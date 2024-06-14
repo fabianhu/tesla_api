@@ -134,7 +134,7 @@ class TeslaAPI:
             logger.info("Token refreshed")
         else:
             # no need to refresh
-            logger.debug(f"No refresh - token is good until {self.token_expires_at}")
+            # logger.debug(f"No refresh - token is good until {self.token_expires_at}")
             pass
 
 
