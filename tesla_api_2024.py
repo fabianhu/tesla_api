@@ -62,6 +62,7 @@ class TeslaAPI:
         self.token_file = _tesla_account_name+"_tokens.json"
         self.client_id = CLIENT_ID
         self.audience = config.tesla_audience  # the audience for this customer
+        self.vin = config.tesla_vin
 
         self.tokens_load()  # load the stored tokens and refresh, if necessary
 
@@ -184,69 +185,67 @@ class TeslaAPI:
         return self.generic_request(target)
 
 
-    def get_vehicle(self, _vin):
+    def get_vehicle(self):
         """
         Get basic info for a specific vehicle
-        :param _vin: the VIN of the vehicle (can also be the index from the prev. list.
         :return:
         """
-        target = f'/api/1/vehicles/{_vin}'
+        target = f'/api/1/vehicles/{self.vin}'
         return self.generic_request(target)
 
 
-    def get_vehicle_data(self, _vin, endpoints=''):
+    def get_vehicle_data(self, endpoints=''):
         """
         Get all vehicle data from specified endpoint list.
-        :param _vin: the VIN of the vehicle (can also be the index from the prev. list.
         :param endpoints: String of endpoints, separated by semicolons;
         :return: dictionary of car data or none if car is asleep (status 408)
         """
-        target = f'/api/1/vehicles/{_vin}/vehicle_data'
+        target = f'/api/1/vehicles/{self.vin}/vehicle_data'
         if endpoints:
             endpoints = urlencode({'endpoints': endpoints})
             target += f'?{endpoints}'
         return self.generic_request(target)
 
-    def cmd_wakeup(self, _vin):
+    def cmd_wakeup(self):
         if config.tesla_ble:
-            if self.tesla_command("wake",_vin, True, config.tesla_remote, "vcsec"):
+            if self.tesla_command("wake",True, config.tesla_remote, "vcsec"):
                 return True
             logger.info("Tried to wakeup by BLE, but did not work, trying via Internet")
-        return self.tesla_command("wake", _vin, False, False, "vcsec")
+        return self.tesla_command("wake", False, False, "vcsec")
 
-    def cmd_ping(self, _vin):
-        return self.tesla_command("ping", _vin, config.tesla_ble, config.tesla_remote, "vcsec") # fixme does not work when asleep
+    def cmd_ping(self):
+        return self.tesla_command("ping", config.tesla_ble, config.tesla_remote, "vcsec") # fixme does not work when asleep
 
-    def cmd_ping2(self, _vin):
+    def cmd_ping2(self):
         # ./tesla-control -ble -debug -key-file ./relay_priv.pem -vin myVIN -domain vcsec session-info ./relay.pem 'vcsec'
-        return self.tesla_command("session-info ./relay.pem \'vcsec\'", _vin, config.tesla_ble, config.tesla_remote, "vcsec")
+        return self.tesla_command("session-info ./relay.pem \'vcsec\'", config.tesla_ble, config.tesla_remote, "vcsec")
 
-    def cmd_charge_start(self, _vin):
-        return self.tesla_command("charging-start", _vin, config.tesla_ble, config.tesla_remote)
+    def cmd_charge_start(self):
+        return self.tesla_command("charging-start", config.tesla_ble, config.tesla_remote)
 
-    def cmd_charge_stop(self, _vin):
-        return self.tesla_command("charging-stop", _vin, config.tesla_ble, config.tesla_remote)
+    def cmd_charge_stop(self):
+        return self.tesla_command("charging-stop", config.tesla_ble, config.tesla_remote)
 
-    def cmd_charge_set_limit(self, _vin, _prc):
-        return self.tesla_command(f"charging-set-limit {int(_prc)}", _vin)
+    def cmd_charge_set_limit(self, _prc):
+        return self.tesla_command(f"charging-set-limit {int(_prc)}")
 
-    def cmd_charge_set_schedule(self, _vin, _mins):
-        return self.tesla_command(f"charging-schedule {int(_mins)}", _vin)
+    def cmd_charge_set_schedule(self, _mins):
+        return self.tesla_command(f"charging-schedule {int(_mins)}")
 
-    def cmd_charge_cancel_schedule(self, _vin):
+    def cmd_charge_cancel_schedule(self):
         # remark: this will start a charge immediately!
-        return self.tesla_command("charging-schedule-cancel", _vin)
+        return self.tesla_command("charging-schedule-cancel")
 
-    def cmd_charge_set_amps(self, _vin, _amps):
-        return self.tesla_command(f"charging-set-amps {int(_amps)}", _vin, config.tesla_ble, config.tesla_remote)
+    def cmd_charge_set_amps(self, _amps):
+        return self.tesla_command(f"charging-set-amps {int(_amps)}", config.tesla_ble, config.tesla_remote)
 
-    def cmd_climate_on(self, _vin):
-        return self.tesla_command(f"climate-on", _vin, config.tesla_ble, config.tesla_remote)
+    def cmd_climate_on(self):
+        return self.tesla_command(f"climate-on", config.tesla_ble, config.tesla_remote)
 
-    def cmd_climate_off(self, _vin):
-        return self.tesla_command(f"climate-off", _vin, config.tesla_ble, config.tesla_remote)
+    def cmd_climate_off(self):
+        return self.tesla_command(f"climate-off", config.tesla_ble, config.tesla_remote)
 
-    def tesla_command(self, command_string, _vin, _ble=False, _remote=None, _domain=None):
+    def tesla_command(self, command_string, _ble=False, _remote=None, _domain=None):
         """
         Interface to the tesla-control CLI tool. Used here due to missing native implementation.
         Doc is available now - works as it is for the moment.
@@ -260,7 +259,6 @@ class TeslaAPI:
         :param _domain: the vehicle domain, can be one of "vcsec", "infotainment" or both as list ["vcsec","infotainment"]
         :param _remote: address to execute the command on (assuming ssh is set up passwordless) e.g. "user@10.0.1.2"
         :param _ble: True for command via BLE Bluetooth (also assuming all the setup done)
-        :param _vin: the VIN
         :param command_string: the command
 
         :return bool: true on success
@@ -287,7 +285,7 @@ class TeslaAPI:
         wake                     Wake up vehicle - limit to domain vcsec!
         """
 
-        logger.info(f"Send secure Command {self.commandcount}: {command_string}")
+
 
         # spit out the actual token #
         tokenfile = ".temp_token"
@@ -298,14 +296,14 @@ class TeslaAPI:
         if _ble:
             if _remote is None:
                 # BLE on this machine
-                cmd = f'./lib/tesla_api/tesla-control/tesla-control -ble {assemble_domain_string(_domain)} -key-file ./lib/tesla_api/TeslaKeys/BLEprivatekey.pem -vin {_vin} {command_string}'
+                cmd = f'./lib/tesla_api/tesla-control/tesla-control -ble {assemble_domain_string(_domain)} -key-file ./lib/tesla_api/TeslaKeys/BLEprivatekey.pem -vin {self.vin} {command_string}'
             else:
                 # remote execute the command on your other machine with better BLE reception
-                cmd = f'ssh {_remote} \'./tesla-control -ble {assemble_domain_string(_domain)} -session-cache ./.ble-cache.json -command-timeout 10s -key-file ./relay_priv.pem -vin {_vin} {command_string}\''
+                cmd = f'ssh {_remote} \'./tesla-control -ble {assemble_domain_string(_domain)} -session-cache ./.ble-cache.json -command-timeout 10s -key-file ./relay_priv.pem -vin {self.vin} {command_string}\''
         else:
             # internet from this machine
             # - session-cache avoids re-sending two session info requests per command, which also are billed on the quota.
-            cmd = f'./lib/tesla_api/tesla-control/tesla-control -session-cache ./.tesla-cache.json -key-file ./lib/tesla_api/TeslaKeys/privatekey.pem -token-file {tokenfile} -vin {_vin} {command_string}'
+            cmd = f'./lib/tesla_api/tesla-control/tesla-control -session-cache ./.tesla-cache.json -key-file ./lib/tesla_api/TeslaKeys/privatekey.pem -token-file {tokenfile} -vin {self.vin} {command_string}'
             self.commandcount += 1
 
         logger.debug(f"Prepared command {self.commandcount}: {cmd}")
@@ -323,11 +321,12 @@ class TeslaAPI:
                 logger.error(f"Tesla command #{self.commandcount}: '{command_string}' result({result.returncode}): {result.stdout}")
             # fail successfully
             if command_string == "charging-start" and result.stderr.endswith("is_charging"):
-                logger.error(f"Tesla command #{self.commandcount}: '{command_string}' failed successfully")
+                logger.error(f"Tesla command #{self.commandcount}: '{command_string}' failed successfully, vehicle is charging")
                 return True
             return False
 
-        logger.debug(f"result({result.returncode}):{result.stdout}")
+        logger.info(f"Send secure Command {self.commandcount}: {command_string} result({result.returncode}):{result.stdout}")
+
         if result.stderr:
             logger.debug(f"ERROR:{result.stderr}")  # OK output is always empty.
 
@@ -337,7 +336,7 @@ class TeslaAPI:
 def tesla_generic_request(_audience, _target_url, _access_token, _payload='', fixme=''):
     """
     Get data from car
-    :param fixme: yeah, we should include this fn into the class.
+    :param fixme: yeah, we should include this fn into the class, then also counting would be easy
     :param _audience: the audience
     :param _target_url: target url according specification
     :param _access_token: a valid access token
@@ -543,7 +542,7 @@ def tesla_get_region(_token):
     :return: Answer from server
     """
     target = '/api/1/users/region'
-    return tesla_generic_request(config.tesla_audience, target, _token, None,"region")
+    return tesla_generic_request(config.tesla_audience, target, _token, '',"region")
 
 
 def tesla_partner_check_public_key(_partner_token, _audience):
@@ -581,7 +580,7 @@ if __name__ == '__main__':
 
     vin = r[0]['vin']
 
-    r = myT.get_vehicle(vin) # VIN or ID from list
+    r = myT.get_vehicle() # VIN or ID from list
 
     print(f"Your vehicle is on API version {r['api_version']}.")
 
@@ -589,12 +588,12 @@ if __name__ == '__main__':
 
     if r['state'] == 'asleep':
         print("ZZZzz")
-        #myT.cmd_wakeup(config.tesla_vin)
+        #myT.cmd_wakeup()
     else:
-        # r = tesla_get_vehicle_data(access_token, config.tesla_vin, 'charge_state;location_data') # requests LIVE data only -> 408 if asleep!
-        # r = tesla_get_vehicle_data(access_token, config.tesla_vin, 'charge_state')  # requests LIVE data only -> 408 if asleep!
-        # r = tesla_get_vehicle_data(access_token, config.tesla_vin, 'charge_state;climate_state;closures_state;drive_state;gui_settings;location_data;vehicle_config;vehicle_state;vehicle_data_combo') # requests LIVE data only -> 408 if asleep!
-        r = myT.get_vehicle_data(vin, 'charge_state;drive_state;location_data;vehicle_state')  # requests LIVE data only -> 408 if asleep!
+        # r = tesla_get_vehicle_data(access_token,  'charge_state;location_data') # requests LIVE data only -> 408 if asleep!
+        # r = tesla_get_vehicle_data(access_token,  'charge_state')  # requests LIVE data only -> 408 if asleep!
+        # r = tesla_get_vehicle_data(access_token,  'charge_state;climate_state;closures_state;drive_state;gui_settings;location_data;vehicle_config;vehicle_state;vehicle_data_combo') # requests LIVE data only -> 408 if asleep!
+        r = myT.get_vehicle_data('charge_state;drive_state;location_data;vehicle_state')  # requests LIVE data only -> 408 if asleep!
         print(r)
 
     ## here some command examples to test around
