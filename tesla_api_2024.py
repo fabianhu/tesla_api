@@ -207,11 +207,8 @@ class TeslaAPI:
         return self.generic_request(target)
 
     def cmd_wakeup(self):
-        if config.tesla_ble:
-            if self.tesla_command("wake",True, config.tesla_remote, "vcsec"):
-                return True
-            logger.info("Tried to wakeup by BLE, but did not work, trying via Internet")
-        return self.tesla_command("wake", False, False, "vcsec")
+        return self.tesla_command("wake", config.tesla_ble, config.tesla_remote, "vcsec")
+        # hint: it is pointless to try over internet, because the following charge commands will likely also fail (and eat up the quota)
 
     def cmd_ping(self):
         return self.tesla_command("ping", config.tesla_ble, config.tesla_remote, "vcsec") # fixme does not work when asleep
