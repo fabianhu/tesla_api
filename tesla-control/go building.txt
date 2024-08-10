@@ -12,3 +12,6 @@ build for Raspberry Pi:
 $ env GOOS=linux GOARCH=arm GOARM=7 go build .
 
 finally put (or link) the output file "tesla-control" into this directory.
+
+do not forget to enable BLE access on BLE machine! - has to be renewed at every build!
+$ sudo setcap 'cap_net_admin=eip' "$(which ./tesla-control)"
