@@ -262,6 +262,7 @@ class TeslaAPI:
 
         A selection of available command_string , see also tesla-control -h
         add-key-request          Request NFC-card approval for a enrolling PUBLIC_KEY with ROLE and FORM_FACTOR
+        body-controller-state    Fetch limited vehicle state information. Works over BLE when infotainment is asleep.
         charge-port-close        Close charge port
         charge-port-open         Open charge port (also unlocks charging cable, when connected)
         charging-schedule        Schedule charging to MINS minutes after midnight and enable daily scheduling

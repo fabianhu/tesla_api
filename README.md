@@ -20,7 +20,7 @@ git submodule update --remote``` to update
 - Maybe you have a look at the implementation at [ElectronFluxBalancer](https://github.com/fabianhu/electron-flux-balancer)
 - For sending commands, you need to get and build [tesla-control](https://github.com/teslamotors/vehicle-command/), see below and the readme in the subdirectory `tesla-control`
 
-## Registration Process
+## Registration Process - skip for BLE only usage!
 1. **Set up a third-party account at Tesla Developer**
    - Visit [Tesla Developer Portal](https://developer.tesla.com) to set up an account.
    - Read the registration process [there](https://developer.tesla.com/docs/fleet-api)!
@@ -78,36 +78,48 @@ git submodule update --remote``` to update
    ```bash
    go build .
    ```
-6. Cross-compile for Raspberry Pi 3 on the PC
+   This generates an elf file `tesla_control`, which can be directly executed on the PC.
+6. Cross-compile on the PC for Raspberry Pi 2/3 zero2W
    ```bash
    env GOOS=linux GOARCH=arm GOARM=7 go build .
    # one line!
    ```
-   This generates an elf file `tesla_control`, which can be directly executed on the Pi3.
-7. put this file into the lib/tesla_api/vehicle_command/ directory of your project on the Pi.
-
+   This generates an elf file `tesla_control`, which can be directly executed on the Pi.
+7. Put this file into the lib/tesla_api/vehicle_command/ directory of your project on the Pi.
+8. Grant BLE permission:
+   ```bash
+   sudo setcap 'cap_net_admin=eip' "$(which ./tesla-control)"
+   ```
+   
 ## BLE
- Setup for BLE commands for working around the Tesla rate limit:
+ Setup for BLE commands not influenced by the Tesla API rate limit:
 
 1. You have to generate a new key pair - the fleet keys will NOT work.
 
    Maybe you have to compile tesla-keygen first - do as described for the tesla-command.
       ```bash
       ./tesla-keygen -key-file ./relay_priv.pem create > ./relay.pem
-      # will generate two files - public and private
-      #relay.pem
-      #relay_priv.pem
-      # for local operation put the private key to: ./lib/tesla_api/TeslaKeys/BLEprivatekey.pem
       ```
+   will generate two files - public and private
+
+   relay.pem
+
+   relay_priv.pem
+
+   for local operation put the private key to: ./lib/tesla_api_ble/TeslaKeys/BLEprivatekey.pem
+
 2. optional: copy both keys to the remote machine
    Setup of password-less SSH should be done at this point.
    ```bash
    scp relay*.pem user@192.168.1.77:~
    ```
 3. add the public! key to the vehicle
+   
+   Sends add-key request to your car. 
+
+   Confirm by tapping NFC card on center console.
    ```bash
    ./tesla-control -ble -vin LRWYGCEK9NC999999 add-key-request ./relay.pem owner cloud_key
-   # Sent add-key request to LRWYGCEK9NC999999. Confirm by tapping NFC card on center console.
    ```
 4. Send commands
    Now you cen test the setup:
