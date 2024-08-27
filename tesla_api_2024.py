@@ -304,7 +304,7 @@ class TeslaAPI:
             cmd = f'./lib/tesla_api/tesla-control/tesla-control -session-cache ./.tesla-cache.json -key-file ./lib/tesla_api/TeslaKeys/privatekey.pem -token-file {tokenfile} -vin {self.vin} {command_string}'
             self.commandcount += 1
 
-        logger.debug(f"Prepared command {self.commandcount}: {cmd}")
+        #logger.debug(f"Prepared command {self.commandcount}: {cmd}")
 
         result = subprocess.run(
             cmd,
@@ -316,7 +316,8 @@ class TeslaAPI:
             if result.stderr:
                 logger.error(f"Tesla command #{self.commandcount}: '{command_string}' result({result.returncode}): {result.stdout}\nERROR: {result.stderr}")
             else:
-                logger.error(f"Tesla command #{self.commandcount}: '{command_string}' result({result.returncode}): {result.stdout}")
+                pass
+                #logger.error(f"Tesla command #{self.commandcount}: '{command_string}' result({result.returncode}): {result.stdout}")
             # fail successfully
             if command_string == "charging-start" and result.stderr.endswith("is_charging"):
                 logger.error(f"Tesla command #{self.commandcount}: '{command_string}' failed successfully, vehicle is charging")
