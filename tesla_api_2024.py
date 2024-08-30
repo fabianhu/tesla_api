@@ -304,7 +304,7 @@ class TeslaAPI:
             cmd = f'./lib/tesla_api/tesla-control/tesla-control -session-cache ./.tesla-cache.json -key-file ./lib/tesla_api/TeslaKeys/privatekey.pem -token-file {tokenfile} -vin {self.vin} {command_string}'
             self.commandcount += 1
 
-        #logger.debug(f"Prepared command {self.commandcount}: {cmd}")
+        logger.debug(f"Prepared command {self.commandcount}: {cmd}")
 
         result = subprocess.run(
             cmd,
@@ -317,14 +317,30 @@ class TeslaAPI:
                 logger.error(f"Tesla command #{self.commandcount}: '{command_string}' result({result.returncode}): {result.stdout}\nERROR: {result.stderr}")
             else:
                 pass
-                #logger.error(f"Tesla command #{self.commandcount}: '{command_string}' result({result.returncode}): {result.stdout}")
+                logger.debug(f"Tesla command #{self.commandcount}: '{command_string}' result({result.returncode}): {result.stdout}")
             # fail successfully
             if command_string == "charging-start" and result.stderr.endswith("is_charging"):
                 logger.error(f"Tesla command #{self.commandcount}: '{command_string}' failed successfully, vehicle is charging")
                 return True
-            return False
 
-        logger.info(f"Send secure Command {self.commandcount}: {command_string} result({result.returncode}):{result.stdout}")
+            #handle BLE error
+            if result.stderr:
+                if "failed to find a BLE device" in result.stderr and config.allow_ble_reboot:
+                    if _remote is None:
+                        # BLE on this machine
+                        cmd = f'sudo reboot'
+                    else:
+                        # remote execute the command on your other machine with better BLE reception
+                        cmd = f'ssh {_remote} \'sudo reboot\''
+                    logger.error(f"try fixing BLE error with command: {cmd}")
+                    result = subprocess.run(
+                        cmd,
+                        capture_output=True,
+                        text=True,
+                        shell=True)
+                    logger.error(f"try fixing BLE error - result: {result}")
+
+            return False
 
         if result.stderr:
             logger.debug(f"ERROR:{result.stderr}")  # OK output is always empty.
