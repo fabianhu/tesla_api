@@ -173,7 +173,7 @@ class TeslaAPI:
     def generic_request(self, target):
         self.tokens_refresh()
         self.requestcount += 1
-        return tesla_generic_request(self.audience, target, self.access_token, str(self.requestcount))
+        return tesla_generic_request(_audience = self.audience, _target_url = target, _access_token = self.access_token, _payload = '', fixme = str(self.requestcount))
 
 
     def get_vehicles_list(self):
@@ -379,7 +379,7 @@ def tesla_generic_request(_audience, _target_url, _access_token, _payload='', fi
                 new_location = location_header
                 logger.debug(f"Redirecting to: {new_location}")
                 conn.close()
-                return tesla_generic_request(_audience, new_location, _access_token, _payload, 'recurse')  # recursive call fixme counter !!!
+                return tesla_generic_request(_audience = _audience, _target_url = new_location, _access_token = _access_token, _payload = _payload, fixme = 'recurse')  # recursive call fixme counter !!!
 
         data = res.read()
         datastring = data.decode('utf-8')
@@ -402,7 +402,8 @@ def tesla_generic_request(_audience, _target_url, _access_token, _payload='', fi
         logger.error(f"JSONDecodeError occurred: {e}")
         json_data = None
     except Exception as e:
-        logger.error(f"An unexpected error occurred: {e}")
+        logger.error(f"An unexpected error occurred: {e}\n"
+                     f"_audience={_audience}\n_target_url={_target_url}\n_access_token={_access_token}\n_payload={_payload}\nfixme={fixme}")
         json_data = None
     finally:
         if conn:
@@ -557,7 +558,7 @@ def tesla_get_region(_token):
     :return: Answer from server
     """
     target = '/api/1/users/region'
-    return tesla_generic_request(config.tesla_audience, target, _token, '',"region")
+    return tesla_generic_request(_audience = config.tesla_audience, _target_url = target, _access_token = _token, _payload = '', fixme = "region")
 
 
 def tesla_partner_check_public_key(_partner_token, _audience):
@@ -571,7 +572,7 @@ def tesla_partner_check_public_key(_partner_token, _audience):
         "domain": config.tesla_redirect_domain
     })
     target = '/api/1/partner_accounts/public_key'
-    return tesla_generic_request(_audience, target, _partner_token, payload, 'keycheck')
+    return tesla_generic_request(_audience = _audience, _target_url = target, _access_token = _partner_token, _payload = payload, fixme = 'keycheck')
 
 
 # test stuff, if run directly (only on PC!)
@@ -601,15 +602,17 @@ if __name__ == '__main__':
 
     print("vehicle info", r)
 
-    if r['state'] == 'asleep':
+    '''    if r['state'] == 'asleep' or r['state'] == 'offline':
         print("ZZZzz")
-        #myT.cmd_wakeup()
+        myT.cmd_wakeup()
     else:
         # r = tesla_get_vehicle_data(access_token,  'charge_state;location_data') # requests LIVE data only -> 408 if asleep!
         # r = tesla_get_vehicle_data(access_token,  'charge_state')  # requests LIVE data only -> 408 if asleep!
         # r = tesla_get_vehicle_data(access_token,  'charge_state;climate_state;closures_state;drive_state;gui_settings;location_data;vehicle_config;vehicle_state;vehicle_data_combo') # requests LIVE data only -> 408 if asleep!
-        r = myT.get_vehicle_data('charge_state;drive_state;location_data;vehicle_state')  # requests LIVE data only -> 408 if asleep!
-        print(r)
+        '''
+
+    r = myT.get_vehicle_data('charge_state;drive_state;location_data;vehicle_state;climate_state')  # requests LIVE data only -> 408 if asleep!
+    print(r)
 
     ## here some command examples to test around
     #myT.tesla_command("wake")
