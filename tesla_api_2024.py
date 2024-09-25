@@ -227,11 +227,15 @@ class TeslaAPI:
         return self.tesla_command(f"charging-set-limit {int(_prc)}")
 
     def cmd_charge_set_schedule(self, _mins):
-        return self.tesla_command(f"charging-schedule {int(_mins)}")
+        return self.tesla_command(f"charging-schedule {int(_mins)}",config.tesla_ble, config.tesla_remote)
 
     def cmd_charge_cancel_schedule(self):
-        # remark: this will start a charge immediately!
+        # this will start a charge immediately, if plugged in and waiting.
         return self.tesla_command("charging-schedule-cancel")
+
+    def cmd_charge_schedules_delete(self):
+        # deleting an active id will start charging.
+        return self.tesla_command(f"charging-schedule-remove home",config.tesla_ble, config.tesla_remote)
 
     def cmd_charge_set_amps(self, _amps):
         return self.tesla_command(f"charging-set-amps {int(_amps)}", config.tesla_ble, config.tesla_remote)
