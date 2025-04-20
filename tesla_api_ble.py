@@ -6,6 +6,9 @@ https://github.com/fabianhu/tesla_api
 This library expects to be in the location lib/tesla_api/ in your project.
 See it running in https://github.com/fabianhu/electron-flux-balancer
 
+https://edotor.net/?engine=dot#%0Adigraph%20%7B%0A%0Asubgraph%20cluster_connection%20%7B%0Aaway-%3E%20connected%20%5Blabel%3D%22search%20every%2020s%22%5D%0Aconnected%20-%3E%20disconnect%20%5Blabel%3D%22search%20every%2020s%22%5D%0A%7D%0A%0Asubgraph%20cluster_state%20%7B%0A%20%20%20%20idle%20-%3E%20charging%0A%20%20%20%20charging%20-%3E%20idle%0A%7D%0A%0Asubgraph%20cluster_whish%20%7B%0A%20%20%20%20overflow%20-%3E%20cheap%20%5Blabel%3D%22btn2%22%5D%0A%20%20%20%20cheap%20-%3E%20overflow%20%5Blabel%3D%22btn1%22%5D%0A%20%20%20%20cheap%20-%3E%20soon%20%5Blabel%3D%22btn3%22%5D%0A%20%20%20%20soon%20-%3E%20cheap%20%5Blabel%3D%22btn2%22%5D%0A%20%20%20%20overflow%20-%3E%20soon%20%5Blabel%3D%22btn3%22%5D%0A%20%20%20%20soon%20-%3E%20overflow%20%5Blabel%3D%22btn1%22%5D%0A%7D%0A%0A%7D%0A
+
+
 """
 
 import http.client
@@ -18,12 +21,14 @@ import webbrowser
 import secrets
 from urllib.parse import urlencode
 
-#own lib and modules
+# own lib and modules
 
-from lib.logger import Logger # own logger
+from lib.logger import Logger  # own logger
+
 logger = Logger(logging.DEBUG, "tesla_ble.log")
 
 import config  # a file config.py in the base directory, which contains all the variables config.xxx as follows:
+
 '''
 # content of config.py:
 tesla_vin = 'LRWYAAAAAAA135456'
@@ -40,12 +45,14 @@ tesla_audience = "fleet-api.prd.eu.vn.cloud.tesla.com" # Europe
 tesla_scopes = "user_data vehicle_device_data vehicle_cmds vehicle_charging_cmds energy_device_data energy_cmds"  # match with your application access request
 '''
 
+
 def assemble_domain_string(domain):
     if domain is None:
         return ""
     if not isinstance(domain, list):
         domain = [domain]
     return " ".join(f"-domain {value}" for value in domain)
+
 
 class TeslaAPIBLE:
     def __init__(self, _tesla_account_name: str = "tesla"):
@@ -72,46 +79,28 @@ class TeslaAPIBLE:
         # scp relay*.pem user@192.168.1.77:~
 
         # prints: Sent add-key request to LR321321321321. Confirm by tapping NFC card on center console.
-        # Note: there will be absolute NO INDICATION in the vehicle, until the card is tapped
+        # Note: there will be absolute NO INDICATION for the request in the vehicle, until the card is tapped - so just tap it!
         return self.tesla_ble_command("add-key-request ./relay.pem owner cloud_key")
 
-    def cmd_wakeup(self):
+    def cmd_wakeup(self):  # wake up the car
         return self.tesla_ble_command("wake", "vcsec")
 
-    def cmd_get_state(self):
-        return self.tesla_ble_command("body-controller-state")
+    def get_state(self, which):  # One of climate, closures, charge-schedule, precondition-schedule, software-update, parental-controls, charge, drive, location, tire-pressure, media, media-detail
+        return self.tesla_ble_command(f"state {which}", _expect_json=True)
 
-    '''
-    {
-	"vehicleLockState":  "VEHICLELOCKSTATE_LOCKED",
-	"vehicleSleepStatus":  "VEHICLE_SLEEP_STATUS_ASLEEP",
-	"userPresence":  "VEHICLE_USER_PRESENCE_NOT_PRESENT"
-    }
-    {
-	"closureStatuses":  {
-		"frontDriverDoor":  "CLOSURESTATE_CLOSED",
-		"frontPassengerDoor":  "CLOSURESTATE_CLOSED",
-		"rearDriverDoor":  "CLOSURESTATE_CLOSED",
-		"rearPassengerDoor":  "CLOSURESTATE_CLOSED",
-		"rearTrunk":  "CLOSURESTATE_CLOSED",
-		"frontTrunk":  "CLOSURESTATE_CLOSED",
-		"chargePort":  "CLOSURESTATE_OPEN", # open, when connected, when we woke the car!
-		"tonneau":  "CLOSURESTATE_CLOSED"
-	},
-	"vehicleLockState":  "VEHICLELOCKSTATE_LOCKED",
-	"vehicleSleepStatus":  "VEHICLE_SLEEP_STATUS_AWAKE",
-	"userPresence":  "VEHICLE_USER_PRESENCE_NOT_PRESENT"
-    }
-    
-    '''
-
-    def cmd_chargeport_close(self):
-        return self.tesla_ble_command("charge-port-close")
-        # Lucky coincidence, we can use this to find out, if the cable is connected.
-        # Failed to execute command: car could not execute command: cable connected
-
-    def cmd_ping(self):
-        return self.tesla_ble_command("ping", "vcsec") # fixme does not work when asleep
+    def get_vehicle_presence(self):  # returns "asleep" or "awake" or None
+        # Fetch limited vehicle state information. Works over BLE when infotainment is asleep.
+        # the PING command is not working, when the car is asleep
+        res = self.tesla_ble_command("body-controller-state", "vcsec", _expect_json=True)
+        if res is not None:
+            if res["vehicleSleepStatus"] == "VEHICLE_SLEEP_STATUS_ASLEEP":
+                return "asleep"
+            elif res["vehicleSleepStatus"] == "VEHICLE_SLEEP_STATUS_AWAKE":
+                return "awake"
+            else:
+                return None
+        else:
+            return None
 
     def cmd_charge_start(self):
         return self.tesla_ble_command("charging-start")
@@ -142,7 +131,7 @@ class TeslaAPIBLE:
     def cmd_climate_off(self):
         return self.tesla_ble_command(f"climate-off")
 
-    def tesla_ble_command(self, command_string, _domain=None):
+    def tesla_ble_command(self, command_string, _domain=None, _expect_json=False):
 
         """
         Interface to the tesla-control CLI tool. Used here due to missing native implementation.
@@ -154,6 +143,7 @@ class TeslaAPIBLE:
         Concept: we spit out the token and the key into files, invoke the CLI and off we go.
 
         '''
+        :param _expect_json: the command returns a JSON object (provided, tesla-control does return some JSON)
         :param command_string: the command
         :param _domain: the vehicle domain, can be one of "vcsec", "infotainment" or both as list ["vcsec","infotainment"]
 
@@ -185,14 +175,14 @@ class TeslaAPIBLE:
         logger.info(f"Send secure Command {self.commandcount}: {command_string}")
 
         # call the command externally
+        # fixme store the key only temporarily in /tmp to avoid hard store in the file system
 
         if self.remote is None:
             # BLE on this machine
             cmd = f'./lib/tesla_api/tesla-control/tesla-control -ble {assemble_domain_string(_domain)} -session-cache ./.ble-cache.json -key-file ./lib/tesla_api/TeslaKeys/BLEprivatekey.pem -vin {self.vin} {command_string}'
         else:
             # remote execute the command on your other machine with better BLE reception
-            cmd = f'ssh {self.remote} \'./tesla-control -ble {assemble_domain_string(_domain)} -session-cache ./.ble-cache.json -command-timeout 10s -key-file ./relay_priv.pem -vin {self.vin} {command_string}\''
-
+            cmd = f'ssh {self.remote} \'./tesla-control -ble {assemble_domain_string(_domain)} -session-cache ./.ble-cache.json -connect-timeout 10s -key-file ./relay_priv.pem -vin {self.vin} {command_string}\''
 
         logger.debug(f"Prepared command {self.commandcount}: {cmd}")
 
@@ -211,48 +201,59 @@ class TeslaAPIBLE:
             if command_string == "charging-start" and result.stderr.endswith("is_charging"):
                 logger.error(f"Tesla command #{self.commandcount}: '{command_string}' failed successfully - was already charging")
                 return True
+            if _expect_json:
+                return None
             return False
 
         logger.debug(f"result({result.returncode}):{result.stdout}")
+
         if result.stderr:
             logger.debug(f"ERROR:{result.stderr}")  # OK output is always empty.
 
-        return True
-
+        if (_expect_json):
+            try:
+                jsondata = json.loads(result.stdout)
+                if jsondata is not None:
+                    logger.debug(f"JSON:{jsondata}")
+                return jsondata  # return the JSON object or None on error
+            except json.JSONDecodeError:
+                logger.error(f"JSON Decode Error: {result.stdout}, {result.stderr}")
+                return None
+        else:
+            return True
 
 
 # test stuff, if run directly (only on PC!)
 if __name__ == '__main__':
-
     import os
 
     os.chdir("../../")  # hop to the correct directory, as if called as lib/tesla_api/...
 
     myT = TeslaAPIBLE()
+    myCar = {}
 
-    # r = myT.cmd_ping()  # Error: ble: failed to enumerate device services: ATT request failed: input channel closed: io: read/write on closed pipe
+    r = myT.get_vehicle_presence()
 
-    # r = myT.cmd_ping2()
+    if r == "asleep":
+        r = myT.cmd_wakeup()
+        if r:
+            print("Wake successful")
+    elif r == "awake":
+        print("Car is awake")
+        # get some data
+        r = myT.get_state("location")
+        myCar["location"] = r
+        r = myT.get_state("charge")
+        myCar["charge"] = r
+        r = myT.get_state("drive")
+        myCar["drive"] = r
 
-    #r = myT.cmd_wakeup()
+    print(myCar)
 
     # r = myT.cmd_charge_start()  # 'Failed to execute command: car could not execute command: complete'
-
-    #r = myT.cmd_charge_stop() # Failed to execute command: car could not execute command: not_charging
-
-    #r = myT.cmd_charge_set_limit(81)
-
-    #r = myT.cmd_charge_set_amps(7) # success when awake
-
-    r = myT.cmd_get_state()
-
-    print(r)
-
-
+    # r = myT.cmd_charge_stop() # Failed to execute command: car could not execute command: not_charging
+    # r = myT.cmd_charge_set_limit(81)
+    # r = myT.cmd_charge_set_amps(7) # success when awake
 
     # first run: go to the function tesla_register_process() and follow the comments.
     print("First run: go to https://github.com/fabianhu/tesla_api_example for an example project.")
-
-
-
-
