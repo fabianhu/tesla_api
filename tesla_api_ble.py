@@ -85,7 +85,36 @@ class TeslaAPIBLE:
     def cmd_wakeup(self):  # wake up the car
         return self.tesla_ble_command("wake", "vcsec")
 
-    def get_state(self, which):  # One of climate, closures, charge-schedule, precondition-schedule, software-update, parental-controls, charge, drive, location, tire-pressure, media, media-detail
+    def get_state(self, which):
+        # One of climate, closures, charge-schedule, precondition-schedule, software-update, parental-controls, charge, drive, location, tire-pressure, media, media-detail
+        charge_example = {
+          "chargeState":  {
+            "chargingState":  {
+              "Stopped":  {}
+            },
+            "chargeLimitSoc":  80,
+            "batteryLevel":  75,
+            "chargerVoltage":  2,
+            "chargerActualCurrent":  0,
+            "chargerPower":  0,
+            "chargePortDoorOpen":  true,
+            "connChargeCable":  {
+              "IEC":  {}
+            },
+            "scheduledChargingPending":  false,
+            "userChargeEnableRequest":  false,
+            "chargeEnableRequest":  false,
+            "chargePortLatch":  {
+              "Engaged":  {}
+            },
+            "chargeCurrentRequest":  5,
+            "chargeCurrentRequestMax":  16,
+            "timestamp":  "2025-04-27T18:07:55.659Z",
+            "chargingAmps":  5,
+            "chargeCableUnlatched":  false,
+          }
+        }
+
         return self.tesla_ble_command(f"state {which}", _expect_json=True)
 
     def get_vehicle_presence(self):  # returns "asleep" or "awake" or None
@@ -170,6 +199,7 @@ class TeslaAPIBLE:
         session-info             Retrieve session info for PUBLIC_KEY from DOMAIN
         unlock                   Unlock vehicle
         wake                     Wake up vehicle - limit to domain vcsec!
+        status                   one of
         """
 
         logger.info(f"Send secure Command {self.commandcount}: {command_string}")
