@@ -8,8 +8,6 @@ See it running in https://github.com/fabianhu/electron-flux-balancer
 
 https://edotor.net/?engine=dot#%0Adigraph%20%7B%0A%0Asubgraph%20cluster_connection%20%7B%0Aaway-%3E%20connected%20%5Blabel%3D%22search%20every%2020s%22%5D%0Aconnected%20-%3E%20disconnect%20%5Blabel%3D%22search%20every%2020s%22%5D%0A%7D%0A%0Asubgraph%20cluster_state%20%7B%0A%20%20%20%20idle%20-%3E%20charging%0A%20%20%20%20charging%20-%3E%20idle%0A%7D%0A%0Asubgraph%20cluster_whish%20%7B%0A%20%20%20%20overflow%20-%3E%20cheap%20%5Blabel%3D%22btn2%22%5D%0A%20%20%20%20cheap%20-%3E%20overflow%20%5Blabel%3D%22btn1%22%5D%0A%20%20%20%20cheap%20-%3E%20soon%20%5Blabel%3D%22btn3%22%5D%0A%20%20%20%20soon%20-%3E%20cheap%20%5Blabel%3D%22btn2%22%5D%0A%20%20%20%20overflow%20-%3E%20soon%20%5Blabel%3D%22btn3%22%5D%0A%20%20%20%20soon%20-%3E%20overflow%20%5Blabel%3D%22btn1%22%5D%0A%7D%0A%0A%7D%0A
 
-big change: certificates are now placed in /tmp/TeslaKeys/ and checked for presence.
-also remote is removed.
 
 """
 
@@ -22,7 +20,6 @@ import datetime
 import webbrowser
 import secrets
 from urllib.parse import urlencode
-import os
 
 # own lib and modules
 
@@ -38,9 +35,9 @@ tesla_vin = 'LRWYAAAAAAA135456'
 tesla_client_id = "aaaaaaaaaaaa-bbbb-cccc-ddddddddddd"
 tesla_client_secret = "ta-secret.aaaaaaaaaaaaaaaa"  # only needed during registration, so does not ever need to be on the Pi!
 # put your key pair here:
-#/tmp/TeslaKeys/BLEprivatekey.pem
-#/tmp/TeslaKeys/BLEpublickey.pem
-# and store a copy of the the pubkey at: https://your.domain/.well-known/appspecific/com.tesla.3p.public-key.pem  fixme check, if necessary for BLE API!
+#lib/tesla_api/TeslaKeys/privatekey.pem
+#lib/tesla_api/TeslaKeys/publickey.pem
+# and store the pubkey at: https://your.domain/.well-known/appspecific/com.tesla.3p.public-key.pem
 tesla_redirect_domain = "your.domain"  # NO https:// !!!
 tesla_redirect_uri = "https://your.domain/and/stuff/"  # start with https:// and include a tailing '/'!
 tesla_audience = "fleet-api.prd.eu.vn.cloud.tesla.com" # Europe
@@ -64,6 +61,7 @@ class TeslaAPIBLE:
         """
         self.client_id = config.tesla_client_id
         self.vin = config.tesla_vin
+        self.remote = config.tesla_remote
 
         self.commandcount = 0
         self.requestcount = 0
@@ -72,7 +70,7 @@ class TeslaAPIBLE:
 
     def cmd_add_key_request(self):
         # you have to generate the key first:
-        # ./tesla-keygen -key-file ./BLEprivatekey.pem create > ./ BLEpublickey.pem
+        # ./tesla-keygen -key-file ./relay_priv.pem create > ./ relay.pem
         # will generate two files - public and private
         # relay.pem
         # relay_priv.pem
@@ -82,13 +80,7 @@ class TeslaAPIBLE:
 
         # prints: Sent add-key request to LR321321321321. Confirm by tapping NFC card on center console.
         # Note: there will be absolute NO INDICATION for the request in the vehicle, until the card is tapped - so just tap it!
-        return self.tesla_ble_command("add-key-request ./BLEpublickey.pem owner cloud_key")  # keep in mind: the private key does nver leave your devices and does not to be put on the car.
-
-    def is_key_present(self):
-        # check if the key is present
-        # returns: True if present, False if not present
-        # check if the key is present in /tmp/TeslaKeys
-        return os.path.exists("./tmp/TeslaKeys/BLEpublickey.pem") and os.path.exists("./tmp/TeslaKeys/BLEprivatekey.pem")
+        return self.tesla_ble_command("add-key-request ./relay.pem owner cloud_key")
 
     def cmd_wakeup(self):  # wake up the car
         return self.tesla_ble_command("wake", "vcsec")
@@ -105,13 +97,13 @@ class TeslaAPIBLE:
             "chargerVoltage":  2,
             "chargerActualCurrent":  0,
             "chargerPower":  0,
-            "chargePortDoorOpen":  True,
+            "chargePortDoorOpen":  true,
             "connChargeCable":  {
               "IEC":  {}
             },
-            "scheduledChargingPending":  False,
-            "userChargeEnableRequest":  False,
-            "chargeEnableRequest":  False,
+            "scheduledChargingPending":  false,
+            "userChargeEnableRequest":  false,
+            "chargeEnableRequest":  false,
             "chargePortLatch":  {
               "Engaged":  {}
             },
@@ -119,7 +111,7 @@ class TeslaAPIBLE:
             "chargeCurrentRequestMax":  16,
             "timestamp":  "2025-04-27T18:07:55.659Z",
             "chargingAmps":  5,
-            "chargeCableUnlatched":  False,
+            "chargeCableUnlatched":  false,
           }
         }
 
@@ -213,10 +205,14 @@ class TeslaAPIBLE:
         logger.info(f"Send secure Command {self.commandcount}: {command_string}")
 
         # call the command externally
-        # store the key only temporarily in /tmp/TeslaKeys to avoid hard store in the file system
+        # fixme store the key only temporarily in /tmp to avoid hard store in the file system
 
-        # BLE on this machine
-        cmd = f'./lib/tesla_api/tesla-control/tesla-control -ble {assemble_domain_string(_domain)} -session-cache ./.ble-cache.json -key-file ./tmp/TeslaKeys/BLEprivatekey.pem -vin {self.vin} {command_string}'
+        if self.remote is None:
+            # BLE on this machine
+            cmd = f'./lib/tesla_api/tesla-control/tesla-control -ble {assemble_domain_string(_domain)} -session-cache ./.ble-cache.json -key-file ./lib/tesla_api/TeslaKeys/BLEprivatekey.pem -vin {self.vin} {command_string}'
+        else:
+            # remote execute the command on your other machine with better BLE reception
+            cmd = f'ssh {self.remote} \'./tesla-control -ble {assemble_domain_string(_domain)} -session-cache ./.ble-cache.json -connect-timeout 10s -key-file ./relay_priv.pem -vin {self.vin} {command_string}\''
 
         logger.debug(f"Prepared command {self.commandcount}: {cmd}")
 
