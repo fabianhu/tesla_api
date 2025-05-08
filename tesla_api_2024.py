@@ -40,10 +40,6 @@ tesla_audience = "fleet-api.prd.eu.vn.cloud.tesla.com" # Europe
 tesla_scopes = "user_data vehicle_device_data vehicle_cmds vehicle_charging_cmds energy_device_data energy_cmds"  # match with your application access request
 '''
 
-CLIENT_ID = config.tesla_client_id  # this is the developer account, not the customer !!
-CLIENT_SECRET = config.tesla_client_secret # this is the developer account, not the customer !!
-AUDIENCE = config.tesla_audience
-
 def assemble_domain_string(domain):
     if domain is None:
         return ""
@@ -60,7 +56,7 @@ class TeslaAPI:
         self.refresh_token = None
         self.token_expires_at : datetime = datetime.datetime.now()
         self.token_file = _tesla_account_name+"_tokens.json"
-        self.client_id = CLIENT_ID
+        self.client_id = config.tesla_client_id
         self.audience = config.tesla_audience  # the audience for this customer
         self.vin = config.tesla_vin
 
@@ -511,7 +507,7 @@ def tesla_register_customer(myTesla: TeslaAPI):
     print("Next step is to exchange the Code for tokens.\n You find the code in the URL, the tesla server redirects you to.\n The page likely shows a 400 Bad Request, this is normal")
     print("The code can be found between &code and &state in the url")
     user_input_code = input("Please enter the 'code' from the URL: ")
-    myTesla.exchange_code_for_tokens(myTesla.client_id, CLIENT_SECRET, user_input_code)
+    myTesla.exchange_code_for_tokens(myTesla.client_id, config.tesla_client_secret, user_input_code)
     print("So, now we should have the access tokens saved. Your customer account is registered.")
 
 

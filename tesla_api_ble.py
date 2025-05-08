@@ -62,7 +62,6 @@ class TeslaAPIBLE:
         """
         :param _tesla_account_name: just an account name for storing the cached tokens for this account
         """
-        self.client_id = config.tesla_client_id
         self.vin = config.tesla_vin
 
         self.commandcount = 0
@@ -82,7 +81,7 @@ class TeslaAPIBLE:
 
         # prints: Sent add-key request to LR321321321321. Confirm by tapping NFC card on center console.
         # Note: there will be absolute NO INDICATION for the request in the vehicle, until the card is tapped - so just tap it!
-        return self.tesla_ble_command("add-key-request ./BLEpublickey.pem owner cloud_key")  # keep in mind: the private key does nver leave your devices and does not to be put on the car.
+        return self.tesla_ble_command("add-key-request ./BLEpublickey.pem owner cloud_key")  # keep in mind: the private key does never leave your devices and does not to be put on the car.
 
     def is_key_present(self):
         # check if the key is present
