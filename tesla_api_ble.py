@@ -87,7 +87,13 @@ class TeslaAPIBLE:
         # check if the key is present
         # returns: True if present, False if not present
         # check if the key is present in /tmp/TeslaKeys
-        return os.path.exists("./tmp/TeslaKeys/BLEpublickey.pem") and os.path.exists("./tmp/TeslaKeys/BLEprivatekey.pem")
+        if os.path.exists("/tmp/TeslaKeys/BLEpublickey.pem") and os.path.exists("/tmp/TeslaKeys/BLEprivatekey.pem"):
+            return True
+        else:
+            # create the directory
+            if not os.path.exists("/tmp/TeslaKeys"):
+                os.makedirs("/tmp/TeslaKeys")
+            return False
 
     def cmd_wakeup(self):  # wake up the car
         return self.tesla_ble_command("wake", "vcsec")
@@ -215,7 +221,7 @@ class TeslaAPIBLE:
         # store the key only temporarily in /tmp/TeslaKeys to avoid hard store in the file system
 
         # BLE on this machine
-        cmd = f'./lib/tesla_api/tesla-control/tesla-control -ble {assemble_domain_string(_domain)} -session-cache ./.ble-cache.json -key-file ./tmp/TeslaKeys/BLEprivatekey.pem -vin {self.vin} {command_string}'
+        cmd = f'./lib/tesla_api/tesla-control/tesla-control -ble {assemble_domain_string(_domain)} -session-cache ./.ble-cache.json -key-file /tmp/TeslaKeys/BLEprivatekey.pem -vin {self.vin} {command_string}'
 
         logger.debug(f"Prepared command {self.commandcount}: {cmd}")
 
