@@ -13,23 +13,13 @@ also remote is removed.
 
 """
 
-import http.client
 import json
 import logging
-import subprocess
-import requests
-import datetime
-import webbrowser
-import secrets
-from urllib.parse import urlencode
 import os
-
+import subprocess
 # own lib and modules
-
 from lib.logger import Logger  # own logger
-
-logger = Logger(logging.DEBUG, "tesla_ble.log")
-
+logger = Logger(logging.INFO, "tesla_ble.log")
 import config  # a file config.py in the base directory, which contains all the variables config.xxx as follows:
 
 '''
@@ -64,24 +54,20 @@ class TeslaAPIBLE:
         """
         self.vin = config.tesla_vin
 
-        self.commandcount = 0
-        self.requestcount = 0
-
-    # no tokens
-
     def cmd_add_key_request(self):
         # you have to generate the key first:
-        # ./tesla-keygen -key-file ./BLEprivatekey.pem create > ./ BLEpublickey.pem
+        # ./tesla-control/tesla-keygen -key-file ./BLEprivatekey.pem create > ./ BLEpublickey.pem
         # will generate two files - public and private
-        # relay.pem
-        # relay_priv.pem
-
         # copy over to Pi
         # scp relay*.pem user@192.168.1.77:~
-
         # prints: Sent add-key request to LR321321321321. Confirm by tapping NFC card on center console.
-        # Note: there will be absolute NO INDICATION for the request in the vehicle, until the card is tapped - so just tap it!
-        return self.tesla_ble_command("add-key-request ./BLEpublickey.pem owner cloud_key")  # keep in mind: the private key does never leave your devices and does not to be put on the car.
+        # Note: there will be absolute NO INDICATION for the request in the vehicle, until the card is tapped -
+
+        if not self.is_key_present():
+            logger.error("Key not present, please generate it first!")
+            return False
+
+        return self.tesla_ble_command("add-key-request /tmp/TeslaKeys/BLEpublickey.pem owner cloud_key")  # keep in mind: the private key does never leave your devices and does not to be put on the car.
 
     def is_key_present(self):
         # check if the key is present
@@ -98,7 +84,7 @@ class TeslaAPIBLE:
     def cmd_wakeup(self):  # wake up the car
         return self.tesla_ble_command("wake", "vcsec")
 
-    def get_state(self, which):
+    def get_state(self, which)->dict:
         # One of climate, closures, charge-schedule, precondition-schedule, software-update, parental-controls, charge, drive, location, tire-pressure, media, media-detail
         charge_example = {
           "chargeState":  {
@@ -130,50 +116,45 @@ class TeslaAPIBLE:
 
         return self.tesla_ble_command(f"state {which}", _expect_json=True)
 
-    def get_vehicle_presence(self):  # returns "asleep" or "awake" or None
+    def get_vehicle_presence(self)->str:  # returns "asleep" or "awake" or "away"
         # Fetch limited vehicle state information. Works over BLE when infotainment is asleep.
         # the PING command is not working, when the car is asleep
+        res = {}
         res = self.tesla_ble_command("body-controller-state", "vcsec", _expect_json=True)
         if res is not None:
-            if res["vehicleSleepStatus"] == "VEHICLE_SLEEP_STATUS_ASLEEP":
+            if res.get("vehicleSleepStatus") == "VEHICLE_SLEEP_STATUS_ASLEEP":
                 return "asleep"
             elif res["vehicleSleepStatus"] == "VEHICLE_SLEEP_STATUS_AWAKE":
                 return "awake"
             else:
-                return None
+                return "unknown"
         else:
-            return None
+            return "away"
 
-    def cmd_charge_start(self):
+    def cmd_charge_start(self)->bool:
         return self.tesla_ble_command("charging-start")
         # fails with: Failed to execute command: car could not execute command: is_charging
 
-    def cmd_charge_stop(self):
+    def cmd_charge_stop(self)->bool:
         return self.tesla_ble_command("charging-stop")
         # fails with: Failed to execute command: car could not execute command: not_charging
 
-    def cmd_charge_set_limit(self, _prc):
+    def cmd_charge_set_limit(self, _prc)->bool:
         return self.tesla_ble_command(f"charging-set-limit {int(_prc)}")
 
-    def cmd_charge_set_schedule(self, _mins):
+    def cmd_charge_set_schedule(self, _mins)->bool:
         return self.tesla_ble_command(f"charging-schedule {int(_mins)}")
 
-    def cmd_charge_cancel_schedule(self):
+    def cmd_charge_cancel_schedule(self)->bool:
         # remark: this will start a charge immediately!
         return self.tesla_ble_command("charging-schedule-cancel")
         # does not fail on repeated call
 
-    def cmd_charge_set_amps(self, _amps):
+    def cmd_charge_set_amps(self, _amps)->bool:
         return self.tesla_ble_command(f"charging-set-amps {int(_amps)}")
         # does not fail on repeated call
 
-    def cmd_climate_on(self):
-        return self.tesla_ble_command(f"climate-on")
-
-    def cmd_climate_off(self):
-        return self.tesla_ble_command(f"climate-off")
-
-    def tesla_ble_command(self, command_string, _domain=None, _expect_json=False):
+    def tesla_ble_command(self, command_string, _domain=None, _expect_json=False)->bool|dict:
 
         """
         Interface to the tesla-control CLI tool. Used here due to missing native implementation.
@@ -215,15 +196,11 @@ class TeslaAPIBLE:
         status                   one of
         """
 
-        logger.info(f"Send secure Command {self.commandcount}: {command_string}")
-
         # call the command externally
         # store the key only temporarily in /tmp/TeslaKeys to avoid hard store in the file system
-
-        # BLE on this machine
         cmd = f'./lib/tesla_api/tesla-control/tesla-control -ble {assemble_domain_string(_domain)} -session-cache ./.ble-cache.json -key-file /tmp/TeslaKeys/BLEprivatekey.pem -vin {self.vin} {command_string}'
 
-        logger.debug(f"Prepared command {self.commandcount}: {cmd}")
+        logger.debug(f"Prepared command: {cmd}")
 
         result = subprocess.run(
             cmd,
@@ -233,23 +210,23 @@ class TeslaAPIBLE:
 
         if result.returncode != 0:  # we rely on the return code. The stderr is filled by -debug!
             if result.stderr:
-                logger.error(f"Tesla command #{self.commandcount}: '{command_string}' result({result.returncode}): {result.stdout}\nERROR: {result.stderr}")
+                logger.error(f"Tesla command: '{command_string}' result({result.returncode}): {result.stdout}\nERROR: {result.stderr}")
             else:
-                logger.error(f"Tesla command #{self.commandcount}: '{command_string}' result({result.returncode}): {result.stdout}")
+                logger.error(f"Tesla command: '{command_string}' result({result.returncode}): {result.stdout}")
             # fail successfully
             if command_string == "charging-start" and result.stderr.endswith("is_charging"):
-                logger.error(f"Tesla command #{self.commandcount}: '{command_string}' failed successfully - was already charging")
+                logger.error(f"Tesla command: '{command_string}' failed successfully - was already charging")
                 return True
             if _expect_json:
-                return None
+                return {}
             return False
 
-        logger.debug(f"result({result.returncode}):{result.stdout}")
+        # logger.debug(f"result({result.returncode}):{result.stdout}")
 
         if result.stderr:
             logger.debug(f"ERROR:{result.stderr}")  # OK output is always empty.
 
-        if (_expect_json):
+        if _expect_json:
             try:
                 jsondata = json.loads(result.stdout)
                 if jsondata is not None:
@@ -257,14 +234,16 @@ class TeslaAPIBLE:
                 return jsondata  # return the JSON object or None on error
             except json.JSONDecodeError:
                 logger.error(f"JSON Decode Error: {result.stdout}, {result.stderr}")
-                return None
+                return {}
         else:
             return True
 
 
 # test stuff, if run directly (only on PC!)
 if __name__ == '__main__':
-    import os
+    print("tesla_api_ble.py - test program")
+
+
 
     os.chdir("../../")  # hop to the correct directory, as if called as lib/tesla_api/...
 
