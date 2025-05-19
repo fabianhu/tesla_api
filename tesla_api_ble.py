@@ -19,6 +19,7 @@ import os
 import subprocess
 # own lib and modules
 from lib.logger import Logger  # own logger
+
 logger = Logger(logging.INFO, "tesla_ble.log")
 import config  # a file config.py in the base directory, which contains all the variables config.xxx as follows:
 
@@ -67,7 +68,8 @@ class TeslaAPIBLE:
             logger.error("Key not present, please generate it first!")
             return False
 
-        return self.tesla_ble_command("add-key-request /tmp/TeslaKeys/BLEpublickey.pem owner cloud_key")  # keep in mind: the private key does never leave your devices and does not to be put on the car.
+        return self.tesla_ble_command(
+            "add-key-request /tmp/TeslaKeys/BLEpublickey.pem owner cloud_key")  # keep in mind: the private key does never leave your devices and does not to be put on the car.
 
     def is_key_present(self):
         # check if the key is present
@@ -84,39 +86,39 @@ class TeslaAPIBLE:
     def cmd_wakeup(self):  # wake up the car
         return self.tesla_ble_command("wake", "vcsec")
 
-    def get_state(self, which)->dict:
+    def get_state(self, which) -> dict:
         # One of climate, closures, charge-schedule, precondition-schedule, software-update, parental-controls, charge, drive, location, tire-pressure, media, media-detail
         charge_example = {
-          "chargeState":  {
-            "chargingState":  {
-              "Stopped":  {}
-            },
-            "chargeLimitSoc":  80,
-            "batteryLevel":  75,
-            "chargerVoltage":  2,
-            "chargerActualCurrent":  0,
-            "chargerPower":  0,
-            "chargePortDoorOpen":  True,
-            "connChargeCable":  {
-              "IEC":  {}
-            },
-            "scheduledChargingPending":  False,
-            "userChargeEnableRequest":  False,
-            "chargeEnableRequest":  False,
-            "chargePortLatch":  {
-              "Engaged":  {}
-            },
-            "chargeCurrentRequest":  5,
-            "chargeCurrentRequestMax":  16,
-            "timestamp":  "2025-04-27T18:07:55.659Z",
-            "chargingAmps":  5,
-            "chargeCableUnlatched":  False,
-          }
+            "chargeState": {
+                "chargingState": {
+                    "Stopped": {}
+                },
+                "chargeLimitSoc": 80,
+                "batteryLevel": 75,
+                "chargerVoltage": 2,
+                "chargerActualCurrent": 0,
+                "chargerPower": 0,
+                "chargePortDoorOpen": True,
+                "connChargeCable": {
+                    "IEC": {}
+                },
+                "scheduledChargingPending": False,
+                "userChargeEnableRequest": False,
+                "chargeEnableRequest": False,
+                "chargePortLatch": {
+                    "Engaged": {}
+                },
+                "chargeCurrentRequest": 5,
+                "chargeCurrentRequestMax": 16,
+                "timestamp": "2025-04-27T18:07:55.659Z",
+                "chargingAmps": 5,
+                "chargeCableUnlatched": False,
+            }
         }
 
         return self.tesla_ble_command(f"state {which}", _expect_json=True)
 
-    def get_vehicle_presence(self)->str:  # returns "asleep" or "awake" or "away"
+    def get_vehicle_presence(self) -> str:  # returns "asleep" or "awake" or "away"
         # Fetch limited vehicle state information. Works over BLE when infotainment is asleep.
         # the PING command is not working, when the car is asleep
         res = {}
@@ -131,30 +133,32 @@ class TeslaAPIBLE:
         else:
             return "away"
 
-    def cmd_charge_start(self)->bool:
+    def cmd_charge_start(self) -> bool:
         return self.tesla_ble_command("charging-start")
         # fails with: Failed to execute command: car could not execute command: is_charging
 
-    def cmd_charge_stop(self)->bool:
+    def cmd_charge_stop(self) -> bool:
         return self.tesla_ble_command("charging-stop")
         # fails with: Failed to execute command: car could not execute command: not_charging
 
-    def cmd_charge_set_limit(self, _prc)->bool:
+    def cmd_charge_set_limit(self, _prc) -> bool:
         return self.tesla_ble_command(f"charging-set-limit {int(_prc)}")
 
-    def cmd_charge_set_schedule(self, _mins)->bool:
+    def cmd_charge_set_schedule(self, _mins) -> bool:
         return self.tesla_ble_command(f"charging-schedule {int(_mins)}")
 
-    def cmd_charge_cancel_schedule(self)->bool:
+    def cmd_charge_cancel_schedule(self) -> bool:
         # remark: this will start a charge immediately!
         return self.tesla_ble_command("charging-schedule-cancel")
         # does not fail on repeated call
 
-    def cmd_charge_set_amps(self, _amps)->bool:
+    def cmd_charge_set_amps(self, _amps) -> bool:
         return self.tesla_ble_command(f"charging-set-amps {int(_amps)}")
         # does not fail on repeated call
 
-    def tesla_ble_command(self, command_string, _domain=None, _expect_json=False)->bool|dict:
+    from typing import Union
+
+    def tesla_ble_command(self, command_string, _domain=None, _expect_json=False) -> Union[bool, dict]:  # Union python 3.9 compatibility
 
         """
         Interface to the tesla-control CLI tool. Used here due to missing native implementation.
@@ -242,8 +246,6 @@ class TeslaAPIBLE:
 # test stuff, if run directly (only on PC!)
 if __name__ == '__main__':
     print("tesla_api_ble.py - test program")
-
-
 
     os.chdir("../../")  # hop to the correct directory, as if called as lib/tesla_api/...
 
