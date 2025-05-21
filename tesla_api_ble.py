@@ -17,10 +17,11 @@ import json
 import logging
 import os
 import subprocess
+
 # own lib and modules
 from lib.logger import Logger  # own logger
 
-logger = Logger(logging.INFO, "tesla_ble.log")
+logger = Logger(logging.DEBUG, "tesla_ble.log")
 import config  # a file config.py in the base directory, which contains all the variables config.xxx as follows:
 
 '''
@@ -105,6 +106,7 @@ class TeslaAPIBLE:
                 "scheduledChargingPending": False,
                 "userChargeEnableRequest": False,
                 "chargeEnableRequest": False,
+                'chargerPhases': 2,
                 "chargePortLatch": {
                     "Engaged": {}
                 },
@@ -158,7 +160,7 @@ class TeslaAPIBLE:
 
     from typing import Union
 
-    def tesla_ble_command(self, command_string, _domain=None, _expect_json=False) -> Union[bool, dict]:  # Union python 3.9 compatibility
+    def tesla_ble_command(self, command_string, _domain=None, _expect_json=False) -> Union[bool, dict, None]:  # Union python 3.9 compatibility
 
         """
         Interface to the tesla-control CLI tool. Used here due to missing native implementation.
@@ -238,7 +240,7 @@ class TeslaAPIBLE:
                 return jsondata  # return the JSON object or None on error
             except json.JSONDecodeError:
                 logger.error(f"JSON Decode Error: {result.stdout}, {result.stderr}")
-                return {}
+                return None
         else:
             return True
 
