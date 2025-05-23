@@ -11,12 +11,34 @@ https://edotor.net/?engine=dot#%0Adigraph%20%7B%0A%0Asubgraph%20cluster_connecti
 big change: certificates are now placed in /tmp/TeslaKeys/ and checked for presence.
 also remote is removed.
 
+I there are bluetooth issues, please check the following:
+/etc/bluetooth/main.conf:
+[General]
+DisablePlugins=sap
+
+Tools to diagnose:
+sudo py-spy dump -p <PID>
+sudo hciconfig -a
+dmesg | tail -50
+journalctl -xe
+dmesg -T
+journalctl --since "24 hours ago"
+
+tap into python with:
+ps aux | grep python
+Note the PID of your process.
+Then use:
+sudo gdb -p <PID>
+Once inside gdb, type:
+bt
+
 """
 
 import json
 import logging
 import os
 import subprocess
+import time
 
 # own lib and modules
 from lib.logger import Logger  # own logger
@@ -123,12 +145,11 @@ class TeslaAPIBLE:
     def get_vehicle_presence(self) -> str:  # returns "asleep" or "awake" or "away"
         # Fetch limited vehicle state information. Works over BLE when infotainment is asleep.
         # the PING command is not working, when the car is asleep
-        res = {}
         res = self.tesla_ble_command("body-controller-state", "vcsec", _expect_json=True)
         if res is not None:
             if res.get("vehicleSleepStatus") == "VEHICLE_SLEEP_STATUS_ASLEEP":
                 return "asleep"
-            elif res["vehicleSleepStatus"] == "VEHICLE_SLEEP_STATUS_AWAKE":
+            elif res.get("vehicleSleepStatus") == "VEHICLE_SLEEP_STATUS_AWAKE":
                 return "awake"
             else:
                 return "unknown"
@@ -217,14 +238,18 @@ class TeslaAPIBLE:
         if result.returncode != 0:  # we rely on the return code. The stderr is filled by -debug!
             if result.stderr:
                 logger.error(f"Tesla command: '{command_string}' result({result.returncode}): {result.stdout}\nERROR: {result.stderr}")
+                if "failed to enable device" in result.stderr:
+                    logger.error("Failed to enable device, trying to reset BLE:")
+                    self.reset_ble_interface()
+                # fail successfully
+                if command_string == "charging-start" and result.stderr.endswith("is_charging"):
+                    logger.error(f"Tesla command: '{command_string}' failed successfully - was already charging")
+                    return True
             else:
-                logger.error(f"Tesla command: '{command_string}' result({result.returncode}): {result.stdout}")
-            # fail successfully
-            if command_string == "charging-start" and result.stderr.endswith("is_charging"):
-                logger.error(f"Tesla command: '{command_string}' failed successfully - was already charging")
-                return True
+                logger.error(f"Tesla command failed: '{command_string}' result({result.returncode}): {result.stdout}")
+
             if _expect_json:
-                return {}
+                return None  # return None on error
             return False
 
         # logger.debug(f"result({result.returncode}):{result.stdout}")
@@ -243,6 +268,15 @@ class TeslaAPIBLE:
                 return None
         else:
             return True
+
+    def reset_ble_interface(self):
+        try:
+            subprocess.run(["sudo", "hciconfig", "hci0", "down"], check=True)
+            time.sleep(1)  # wait for a second
+            subprocess.run(["sudo", "hciconfig", "hci0", "up"], check=True)
+            print("BLE interface reset successfully.")
+        except subprocess.CalledProcessError as e:
+            print(f"Failed to reset BLE interface: {e}")
 
 
 # test stuff, if run directly (only on PC!)
