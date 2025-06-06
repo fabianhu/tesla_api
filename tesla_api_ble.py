@@ -179,6 +179,9 @@ class TeslaAPIBLE:
         return self.tesla_ble_command(f"charging-set-amps {int(_amps)}")
         # does not fail on repeated call
 
+    def cmd_charge_port_open(self) -> bool:
+        return self.tesla_ble_command("charge-port-open")
+
     from typing import Union
 
     def tesla_ble_command(self, command_string, _domain=None, _expect_json=False) -> Union[bool, dict, None]:  # Union python 3.9 compatibility
