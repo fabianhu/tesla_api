@@ -43,7 +43,7 @@ import time
 # own lib and modules
 from lib.logger import Logger  # own logger
 
-logger = Logger(logging.DEBUG, "tesla_ble.log")
+logger = Logger(logging.INFO, "tesla_ble.log")
 import config  # a file config.py in the base directory, which contains all the variables config.xxx as follows:
 
 '''
@@ -258,7 +258,7 @@ class TeslaAPIBLE:
         # logger.debug(f"result({result.returncode}):{result.stdout}")
 
         if result.stderr:
-            logger.debug(f"ERROR:{result.stderr}")  # OK output is always empty.
+            logger.error(f"ERROR:{result.stderr}")  # OK output is always empty. The stderr is filled by -debug!
 
         if _expect_json:
             try:
