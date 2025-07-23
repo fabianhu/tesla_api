@@ -103,7 +103,7 @@ class TeslaAPI:
 
         if self.token_expires_at < datetime.datetime.now():
             logger.info(f"Token expires at {self.token_expires_at} - will refresh")
-            token_url = "https://auth.tesla.com/oauth2/v3/token"
+            token_url = "https://fleet-auth.prd.vn.cloud.tesla.com/oauth2/v3/token"
             payload = {
                 'grant_type': 'refresh_token',
                 'client_id': self.client_id,
@@ -144,7 +144,7 @@ class TeslaAPI:
         :param code: the code, which was returned to the recirect uri
         :return:
         """
-        token_url = "https://auth.tesla.com/oauth2/v3/token"
+        token_url = "https://fleet-auth.prd.vn.cloud.tesla.com/oauth2/v3/token"
         payload = {
             'grant_type': 'authorization_code',  # works 200 and delivers 2 tokens!
             'client_id': client_id,
@@ -461,7 +461,7 @@ def tesla_get_partner_auth_token(client_id, client_secret, audience_list):
         "audience": f"https://{audience_list}",
     }
     # Make the POST request to obtain the authentication token
-    url = "https://auth.tesla.com/oauth2/v3/token"
+    url = "https://fleet-auth.prd.vn.cloud.tesla.com/oauth2/v3/token"
     response = requests.post(url, data=data, headers={"Content-Type": "application/x-www-form-urlencoded"})
     # Check if the request was successful
     if response.status_code == 200:
@@ -500,7 +500,7 @@ def tesla_register_customer(myTesla: TeslaAPI):
     """
     random_state = secrets.token_hex(16)
     urlscopes = "openid%20offline_access%20" + config.tesla_scopes.replace(' ','%20')
-    url = f"https://auth.tesla.com/oauth2/v3/authorize?&client_id={myTesla.client_id}&locale=en-US&prompt=login&redirect_uri={config.tesla_redirect_uri}&response_type=code&scope={urlscopes}&state={random_state}"
+    url = f"https://fleet-auth.prd.vn.cloud.tesla.com/oauth2/v3/authorize?&client_id={myTesla.client_id}&locale=en-US&prompt=login&redirect_uri={config.tesla_redirect_uri}&response_type=code&scope={urlscopes}&state={random_state}"
     webbrowser.open(url)
     print(f"web-browser opened with URL:\n{url}\n complete registration and watch, if the following random number is not disturbed in the response.")
     print(random_state)
