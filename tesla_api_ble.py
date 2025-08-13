@@ -240,6 +240,11 @@ class TeslaAPIBLE:
 
         if result.returncode != 0:  # we rely on the return code. The stderr is filled by -debug!
             if result.stderr:
+                '''if "context deadline exceeded" in result.stderr:
+                    if _expect_json:
+                        logger.error(f"Tesla command: '{command_string}' timed out")
+                        return None
+                    return False  # silent'''
                 logger.error(f"Tesla command: '{command_string}' result({result.returncode}): {result.stdout}\nERROR: {result.stderr}")
                 if "failed to enable device" in result.stderr:
                     logger.error("Failed to enable device, trying to reset BLE:")
@@ -275,7 +280,7 @@ class TeslaAPIBLE:
     def reset_ble_interface(self):
         try:
             subprocess.run(["sudo", "hciconfig", "hci0", "down"], check=True)
-            time.sleep(1)  # wait for a second
+            time.sleep(2)  # wait
             subprocess.run(["sudo", "hciconfig", "hci0", "up"], check=True)
             print("BLE interface reset successfully.")
         except subprocess.CalledProcessError as e:
