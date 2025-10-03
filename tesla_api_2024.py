@@ -155,8 +155,15 @@ class TeslaAPI:
         }
         response = requests.post(token_url, data=payload)
         token_data = response.json()
-        expiry_time = datetime.datetime.now() + datetime.timedelta(seconds=token_data.get('expires_in'))
-        token_data["expiry_time"] = expiry_time.isoformat()
+        if 'error' in token_data:
+            logger.error("Problem during exchanging code for tokens " + token_data['error'] + "\n" + token_data['error_description'] )
+            return
+        if 'expires_in' in token_data:
+            expiry_time = datetime.datetime.now() + datetime.timedelta(seconds=token_data.get('expires_in'))
+            token_data["expiry_time"] = expiry_time.isoformat()
+        else:
+            logger.error("No expiry date in tokens: " + token_data)
+            return
 
         self.token_expires_at = expiry_time
         self.access_token = token_data.get('access_token')
@@ -584,12 +591,16 @@ if __name__ == '__main__':
 
     myT = TeslaAPI()
 
+    tesla_register_customer(myT)  # do this, if the token file is invalid!!
+
+    exit()
+
     # first run: go to the function tesla_register_process() and follow the comments.
     print("First run: go to https://github.com/fabianhu/tesla_api_example for an example project.")
 
 
-    #r = tesla_get_region(myT.access_token) # 403 for user access token
-    #print("region", r)
+    r = tesla_get_region(myT.access_token) # 403 for user access token
+    print("region", r)
 
     r = myT.get_vehicles_list()
     print("vehicle list", r)
